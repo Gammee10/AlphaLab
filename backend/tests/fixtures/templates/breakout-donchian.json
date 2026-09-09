@@ -1,0 +1,84 @@
+{
+ "specVersion": "1.0",
+ "universe": {
+  "symbol": "EURUSD",
+  "timeframe": "M15"
+ },
+ "exits": {
+  "stopLoss": {
+   "kind": "atr",
+   "atrMultiplier": 1.0
+  },
+  "takeProfit": {
+   "kind": "rr",
+   "ratio": 2.0
+  },
+  "trailing": {
+   "kind": "none"
+  },
+  "timeStop": {
+   "kind": "none"
+  },
+  "oppositeSignalExit": true
+ },
+ "filters": {
+  "session": {
+   "kind": "none"
+  },
+  "volatility": {
+   "kind": "none"
+  }
+ },
+ "risk": {
+  "riskPerTradePct": 0.5,
+  "maxNotionalMult": 3,
+  "leverageMax": 10
+ },
+ "execution": {
+  "fillBasis": "next_open"
+ },
+ "indicators": [
+  {
+   "id": "don",
+   "kind": "Donchian",
+   "period": 20
+  },
+  {
+   "id": "atr",
+   "kind": "ATR",
+   "period": 14
+  }
+ ],
+ "entry": {
+  "direction": "both",
+  "logic": "any",
+  "conditions": [
+   {
+    "id": "breakUp",
+    "left": {
+     "kind": "price",
+     "field": "close"
+    },
+    "op": "crossesAbove",
+    "right": {
+     "kind": "indicator",
+     "ref": "don",
+     "output": "upper"
+    }
+   },
+   {
+    "id": "breakDown",
+    "left": {
+     "kind": "price",
+     "field": "close"
+    },
+    "op": "crossesBelow",
+    "right": {
+     "kind": "indicator",
+     "ref": "don",
+     "output": "lower"
+    }
+   }
+  ]
+ }
+}

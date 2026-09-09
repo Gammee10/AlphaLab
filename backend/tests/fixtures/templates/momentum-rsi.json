@@ -1,0 +1,82 @@
+{
+ "specVersion": "1.0",
+ "universe": {
+  "symbol": "EURUSD",
+  "timeframe": "M15"
+ },
+ "exits": {
+  "stopLoss": {
+   "kind": "atr",
+   "atrMultiplier": 2.0
+  },
+  "takeProfit": {
+   "kind": "rr",
+   "ratio": 2.0
+  },
+  "trailing": {
+   "kind": "none"
+  },
+  "timeStop": {
+   "kind": "none"
+  },
+  "oppositeSignalExit": true
+ },
+ "filters": {
+  "session": {
+   "kind": "none"
+  },
+  "volatility": {
+   "kind": "none"
+  }
+ },
+ "risk": {
+  "riskPerTradePct": 0.5,
+  "maxNotionalMult": 3,
+  "leverageMax": 10
+ },
+ "execution": {
+  "fillBasis": "next_open"
+ },
+ "indicators": [
+  {
+   "id": "rsi",
+   "kind": "RSI",
+   "period": 14
+  },
+  {
+   "id": "atr",
+   "kind": "ATR",
+   "period": 14
+  }
+ ],
+ "entry": {
+  "direction": "both",
+  "logic": "all",
+  "conditions": [
+   {
+    "id": "regime",
+    "left": {
+     "kind": "indicator",
+     "ref": "rsi"
+    },
+    "op": ">",
+    "right": {
+     "kind": "const",
+     "value": 45.0
+    }
+   },
+   {
+    "id": "trigger",
+    "left": {
+     "kind": "indicator",
+     "ref": "rsi"
+    },
+    "op": "crossesAbove",
+    "right": {
+     "kind": "const",
+     "value": 55.0
+    }
+   }
+  ]
+ }
+}

@@ -43,6 +43,8 @@ class _Position:
     entry_price: Decimal
     entry_bar: int
     entry_time: int
+    signal_bar: int
+    signal_time: int
     entry_fees: Decimal
     stop: Decimal
     target: Decimal | None
@@ -325,6 +327,8 @@ def run_backtest(spec: dict[str, Any], bars: BarArrays, config: BacktestConfig) 
                 entry_time=position.entry_time,
                 exit_bar=bar,
                 exit_time=int(bars.open_time[bar]),
+                signal_bar=position.signal_bar,
+                signal_time=position.signal_time,
                 direction=position.direction,
                 qty=position.qty,
                 entry_price=position.entry_price,
@@ -390,6 +394,8 @@ def run_backtest(spec: dict[str, Any], bars: BarArrays, config: BacktestConfig) 
             entry_price=fill,
             entry_bar=bar,
             entry_time=int(bars.open_time[bar]),
+            signal_bar=sig_bar,
+            signal_time=int(bars.open_time[sig_bar]),
             entry_fees=entry_comm,
             stop=stop,
             target=target,

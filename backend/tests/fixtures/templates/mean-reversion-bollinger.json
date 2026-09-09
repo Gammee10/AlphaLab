@@ -1,0 +1,89 @@
+{
+ "specVersion": "1.0",
+ "universe": {
+  "symbol": "EURUSD",
+  "timeframe": "M15"
+ },
+ "exits": {
+  "stopLoss": {
+   "kind": "atr",
+   "atrMultiplier": 1.5
+  },
+  "takeProfit": {
+   "kind": "rr",
+   "ratio": 1.5
+  },
+  "trailing": {
+   "kind": "none"
+  },
+  "timeStop": {
+   "kind": "none"
+  },
+  "oppositeSignalExit": true
+ },
+ "filters": {
+  "session": {
+   "kind": "none"
+  },
+  "volatility": {
+   "kind": "none"
+  }
+ },
+ "risk": {
+  "riskPerTradePct": 0.5,
+  "maxNotionalMult": 3,
+  "leverageMax": 10
+ },
+ "execution": {
+  "fillBasis": "next_open"
+ },
+ "indicators": [
+  {
+   "id": "bb",
+   "kind": "BB",
+   "period": 20,
+   "stdDev": 2.0
+  },
+  {
+   "id": "rsi",
+   "kind": "RSI",
+   "period": 14
+  },
+  {
+   "id": "atr",
+   "kind": "ATR",
+   "period": 14
+  }
+ ],
+ "entry": {
+  "direction": "both",
+  "logic": "all",
+  "conditions": [
+   {
+    "id": "outside",
+    "left": {
+     "kind": "price",
+     "field": "close"
+    },
+    "op": "<",
+    "right": {
+     "kind": "indicator",
+     "ref": "bb",
+     "output": "lower"
+    }
+   },
+   {
+    "id": "stretched",
+    "left": {
+     "kind": "indicator",
+     "ref": "rsi"
+    },
+    "op": "<",
+    "right": {
+     "kind": "const",
+     "value": 30.0
+    }
+   }
+  ]
+ }
+}

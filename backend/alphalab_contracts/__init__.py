@@ -13,6 +13,7 @@ from .errors import (
     StrategyInvalidError,
     ValidationIssue,
 )
+from .runs import config_hash, result_hash
 from .strategy import check_run_compatibility, load_schema, spec_hash, validate_spec, validate_spec_or_raise
 
 __all__ = [
@@ -25,8 +26,10 @@ __all__ = [
     "canonical_json",
     "canonicalize",
     "check_run_compatibility",
+    "config_hash",
     "content_hash",
     "load_schema",
+    "result_hash",
     "spec_hash",
     "validate_spec",
     "validate_spec_or_raise",

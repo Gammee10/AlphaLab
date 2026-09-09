@@ -11,10 +11,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+from decimal import Decimal
 from typing import Any
 
 
 def _round_floats(value: Any) -> Any:
+    if isinstance(value, Decimal):
+        return round(float(value), 6)  # hashes stabilize at 6dp; money exactness lives in tests
     if isinstance(value, float):
         return round(value, 6)
     if isinstance(value, dict):

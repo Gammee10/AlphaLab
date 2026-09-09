@@ -56,6 +56,8 @@ class Trade:
     entry_time: int
     exit_bar: int
     exit_time: int
+    signal_bar: int
+    signal_time: int
     direction: str  # long | short
     qty: Decimal
     entry_price: Decimal

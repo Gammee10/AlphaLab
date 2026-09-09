@@ -1,0 +1,107 @@
+{
+ "specVersion": "1.0",
+ "universe": {
+  "symbol": "EURUSD",
+  "timeframe": "M15"
+ },
+ "exits": {
+  "stopLoss": {
+   "kind": "atr",
+   "atrMultiplier": 1.5
+  },
+  "takeProfit": {
+   "kind": "rr",
+   "ratio": 2.0
+  },
+  "trailing": {
+   "kind": "none"
+  },
+  "timeStop": {
+   "kind": "none"
+  },
+  "oppositeSignalExit": true
+ },
+ "filters": {
+  "session": {
+   "kind": "window",
+   "startHourUtc": 7,
+   "endHourUtc": 20
+  },
+  "volatility": {
+   "kind": "none"
+  }
+ },
+ "risk": {
+  "riskPerTradePct": 0.5,
+  "maxNotionalMult": 3,
+  "leverageMax": 10
+ },
+ "execution": {
+  "fillBasis": "next_open"
+ },
+ "indicators": [
+  {
+   "id": "emaFast",
+   "kind": "EMA",
+   "period": 50
+  },
+  {
+   "id": "emaSlow",
+   "kind": "EMA",
+   "period": 200
+  },
+  {
+   "id": "emaPull",
+   "kind": "EMA",
+   "period": 20
+  },
+  {
+   "id": "atr",
+   "kind": "ATR",
+   "period": 14
+  }
+ ],
+ "entry": {
+  "direction": "long",
+  "logic": "all",
+  "conditions": [
+   {
+    "id": "trend",
+    "left": {
+     "kind": "indicator",
+     "ref": "emaFast"
+    },
+    "op": ">",
+    "right": {
+     "kind": "indicator",
+     "ref": "emaSlow"
+    }
+   },
+   {
+    "id": "pullback",
+    "left": {
+     "kind": "price",
+     "field": "close"
+    },
+    "op": "<",
+    "right": {
+     "kind": "indicator",
+     "ref": "emaPull"
+    }
+   },
+   {
+    "id": "bounce",
+    "left": {
+     "kind": "price",
+     "field": "close"
+    },
+    "op": ">",
+    "right": {
+     "kind": "price",
+     "field": "close",
+     "offsetBars": 1
+    }
+   }
+  ]
+ }
+}
