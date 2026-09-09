@@ -20,7 +20,7 @@ from alphalab_contracts import (
     validate_spec_or_raise,
 )
 from alphalab_core.bars import BarArrays
-from alphalab_core.config import BacktestConfig, Costs, RunPayload
+from alphalab_core.config import ENGINE_VERSION, BacktestConfig, Costs, RunPayload
 from alphalab_core.engine import run_backtest
 from alphalab_core.instruments import INSTRUMENT_META_VERSION
 from alphalab_core.metrics import compute_metrics
@@ -84,7 +84,7 @@ def build_config_dict(
         "inSample": in_sample,
         "outOfSample": out_of_sample,
         "instrumentMetaVersion": INSTRUMENT_META_VERSION,
-        "engineVersion": "engine/1.0",
+        "engineVersion": ENGINE_VERSION,
     }
 
 

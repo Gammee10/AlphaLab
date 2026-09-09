@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-ENGINE_VERSION = "engine/1.0"
+ENGINE_VERSION = "engine/1.1"
 
 EPS = Decimal("0.000000001")
 

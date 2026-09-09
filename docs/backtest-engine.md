@@ -1,6 +1,9 @@
 # Backtest engine (normative execution semantics)
 
-Engine version: `engine/1.0`. Any semantic change → bump version; old runs stay valid under their recorded version.
+Engine version: `engine/1.1`. Any semantic change → bump version; old runs stay valid under their recorded version.
+
+Changelog:
+- `engine/1.1`: gap-through-stop exits at the open-adverse price on any bar (previously paid the stop price). Runs recorded under `engine/1.0` that contain gap-through-stop exits are not comparable to `engine/1.1` runs; see `warnings.gapThroughStop` (new in 1.1).
 Location: `backend/alphalab_core` (pure Python: stdlib + numpy kernels only, no FastAPI/SQLAlchemy/HTTP/AI imports). Signature: `run_backtest(spec, bars, config) -> BacktestRunPayload`.
 
 ## 1. Timing contract (anti-lookahead)
@@ -56,7 +59,7 @@ Unsupported in v1 (reject at validation, `NOT_SUPPORTED_IN_MVP`): limit/stop ent
 For an open long with `stop S < entry E < target T`, on each bar with range `[L, H]` (after entry bar's fill):
 
 - If `L ≤ S` and `H ≥ T` (both touched): **stop first** (pessimistic). Record `warnings.ambiguousBars++`.
-- Else if `L ≤ S`: stop fill at `S` with exit-side costs (long: `S − spread/2 − slippage`; short: `S + spread/2 + slippage`).
+- Else if `L ≤ S`: stop fill at `S` with exit-side costs (long: `S − spread/2 − slippage`; short: `S + spread/2 + slippage`), **except** when the bar opened beyond the stop (gap-through-stop: long `open < S`, short `open > S`): then the stop was already breached at the open and the exit is at the open-adverse price (long: `open − spread/2 − slippage`; short: `open + spread/2 + slippage`), counted in `warnings.gapThroughStop`. Gap-through-target is not symmetric: a gap in the trader's favor still fills at `T` (pessimistic — favorable gaps never inflate results).
 - Else if `H ≥ T`: target fill at `T` with exit-side costs (long: `T − spread/2 − slippage`; short: `T + spread/2 + slippage`).
 - Trailing (normative): once unrealized profit reaches `activationR` (in units of initial stop distance R; default 1.0 if omitted), `S` ratchets each bar to `max(S, highestFavorable − atrMultiplier × ATR[t])` for longs (mirror for shorts); it never loosens. Trailing exits use exit-side costs and `exitReason: trailing`.
 - Time-stop: close at `open` of bar `entryBar + N` if still open.

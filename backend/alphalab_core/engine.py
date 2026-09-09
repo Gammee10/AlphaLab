@@ -1,12 +1,13 @@
 """Deterministic backtest engine (docs/backtest-engine.md, normative).
 
 Timing contract: signals on closed bar t, fills at open t+1, pessimistic
-stop-first ambiguity, Decimal money, one position per run (engine/1.0).
+stop-first ambiguity, gap-through-stop at open-adverse price, Decimal money,
+one position per run (see ENGINE_VERSION in config.py).
 
 NaN-suppression makes warmup structural: any unavailable operand value vetoes
 the signal, so warming indicators can never generate trades.
 
-Short-side signals use the mirrored condition tree (engine/1.0 semantics):
+Short-side signals use the mirrored condition tree (current-engine semantics):
 ``>`` <-> ``<``, ``>=`` <-> ``<=``, crossesAbove <-> crossesBelow, ``==``/``!=``
 unchanged. ``direction`` gates entries only; opposite-signal exits use the
 evaluated opposite side. Tie-break when both sides fire on the same bar: long.
@@ -217,6 +218,7 @@ def run_backtest(
         "ambiguousBars": 0,
         "gapsEncountered": 0,
         "gapRiskExceeded": 0,
+        "gapThroughStop": 0,
     }
 
     cash = money(config.initial_capital)
@@ -518,6 +520,15 @@ def run_backtest(
             if position.direction == "long":
                 s_px = s - spread_amt(s) - slip_amt(s)
                 t_px = (t - spread_amt(t) - slip_amt(t)) if t is not None else None
+                # Gap-through-stop (worst realistic, disclosed): if the bar opened
+                # beyond the stop, the stop was already breached at the open --
+                # exit at the open-adverse price, never at the stop price.
+                # Open-based exits are not marked ambiguous (consistent with
+                # time/opposite exits); the gap is disclosed via gapThroughStop.
+                open_adv = exit_price_at_open(i, "long")
+                if open_adv < s_px:
+                    warnings["gapThroughStop"] = int(warnings["gapThroughStop"]) + 1
+                    s_px = open_adv
                 hit_stop = l <= s
                 hit_tgt = t is not None and h >= t
                 if hit_stop and hit_tgt:
@@ -530,6 +541,10 @@ def run_backtest(
             else:
                 s_px = s + spread_amt(s) + slip_amt(s)
                 t_px = (t + spread_amt(t) + slip_amt(t)) if t is not None else None
+                open_adv = exit_price_at_open(i, "short")
+                if open_adv > s_px:
+                    warnings["gapThroughStop"] = int(warnings["gapThroughStop"]) + 1
+                    s_px = open_adv
                 hit_stop = h >= s
                 hit_tgt = t is not None and l <= t
                 if hit_stop and hit_tgt:
@@ -575,6 +590,7 @@ def run_backtest(
         f"costs: {config.costs.spread_bps}bps spread, {config.costs.slippage_bps}bps slippage, "
         f"{config.costs.commission_per_unit}/unit commission (exit side: longs at bid)",
         f"ambiguity rule: stop-first; ambiguous bars: {warnings['ambiguousBars']}",
+        f"gap-through-stop exits at open-adverse price; gap bars: {warnings['gapThroughStop']}",
         "marginCallSimulated: false (leverage is a cap, not a margin simulator)",
         f"sizing: risk {risk['riskPerTradePct']}% of equity, estimate-vs-fill disclosed per trade",
         "short signals mirror long logic (>,<,>=,<=,crosses swapped); long wins ties",

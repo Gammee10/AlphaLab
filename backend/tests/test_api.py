@@ -8,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from alphalab_api.app import create_app
+from alphalab_core.config import ENGINE_VERSION
 
 CSV = """open_time,open,high,low,close,volume
 2024-01-02T00:00:00Z,100,100,100,100,10
@@ -123,7 +124,7 @@ def test_dataset_import_dedupe_and_errors(client: TestClient) -> None:
 def test_backtest_one_trade_run(client: TestClient) -> None:
     dataset_id = make_dataset(client)
     run = backtest(client, make_strategy(client), dataset_id)
-    assert run["engineVersion"] == "engine/1.0"
+    assert run["engineVersion"] == ENGINE_VERSION
     assert run["metrics"]["tradeCount"] == 1
     assert run["metrics"]["netProfit"] == "-100"
     assert run["warnings"]["warmupBarsSkipped"] == 1  # signal bar 0 needs t-1

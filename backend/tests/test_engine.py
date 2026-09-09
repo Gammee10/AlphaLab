@@ -48,6 +48,7 @@ def test_ambiguous_bar_stop_first() -> None:
 
 def test_gap_through_stop_and_risk_warning() -> None:
     # Fill gaps far below the estimate: realized risk dwarfs intended risk.
+    # Gap-through-stop exits at the open-adverse price (90), never the stop (100).
     bars = bars_from_lists(
         times(4), [100, 101, 90, 89], [100, 101, 91, 90], [100, 100, 89, 88], [100, 101, 90, 89]
     )
@@ -55,10 +56,56 @@ def test_gap_through_stop_and_risk_warning() -> None:
     assert len(payload.trades) == 1
     tr = payload.trades[0]
     assert tr.entry_price == Decimal("90")
-    assert tr.exit_reason == "stop" and tr.exit_price == Decimal("100")
+    assert tr.exit_reason == "stop" and tr.exit_price == Decimal("90")
+    assert tr.gross_pnl == Decimal("0") and tr.net_pnl == Decimal("0")
     assert tr.intended_risk == Decimal("100")
     assert tr.realized_risk == Decimal("1000")
     assert payload.warnings["gapRiskExceeded"] == 1
+    assert payload.warnings["gapThroughStop"] == 1
+
+
+def test_gap_through_stop_short() -> None:
+    # Mirror: short gaps up through its stop -> exits at open-adverse (110).
+    spec = base_spec()
+    spec["entry"]["direction"] = "short"
+    bars = bars_from_lists(
+        times(4), [100, 99, 110, 111], [100, 99, 111, 112], [100, 98, 109, 110], [100, 99, 110, 111]
+    )
+    payload = run_backtest(spec, bars, cfg(end_ms=T0 + 3 * M15))
+    assert len(payload.trades) == 1
+    tr = payload.trades[0]
+    assert tr.direction == "short"
+    assert tr.entry_price == Decimal("110")
+    assert tr.exit_reason == "stop" and tr.exit_price == Decimal("110")
+    assert tr.gross_pnl == Decimal("0") and tr.net_pnl == Decimal("0")
+    assert payload.warnings["gapThroughStop"] == 1
+
+
+def test_gap_exactly_to_stop_is_not_a_gap() -> None:
+    # Bar opens exactly at the stop: no gap, exit at the stop price.
+    bars = bars_from_lists(
+        times(4), [100, 101, 100, 100], [100, 101, 101, 101], [100, 100, 99, 99], [100, 101, 100, 100]
+    )
+    payload = run_backtest(base_spec(), bars, cfg(end_ms=T0 + 3 * M15))
+    assert len(payload.trades) == 1
+    tr = payload.trades[0]
+    assert tr.exit_reason == "stop" and tr.exit_price == Decimal("100")
+    assert payload.warnings["gapThroughStop"] == 0
+
+
+def test_gap_through_stop_with_target_touched_stays_stop_first() -> None:
+    # Gap down through the stop while the high also reaches the target:
+    # stop-first still wins, at the adverse open, marked ambiguous.
+    bars = bars_from_lists(
+        times(4), [100, 101, 90, 89], [100, 101, 104, 90], [100, 100, 89, 88], [100, 101, 90, 89]
+    )
+    payload = run_backtest(base_spec(), bars, cfg(end_ms=T0 + 3 * M15))
+    assert len(payload.trades) == 1
+    tr = payload.trades[0]
+    assert tr.exit_reason == "stop" and tr.ambiguous
+    assert tr.exit_price == Decimal("90")
+    assert payload.warnings["ambiguousBars"] == 1
+    assert payload.warnings["gapThroughStop"] == 1
 
 
 def test_commission_and_slippage_stack_exact() -> None:
