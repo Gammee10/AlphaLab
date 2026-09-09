@@ -228,6 +228,7 @@ def insert_run(
     for t in payload.trades:
         session.add(models.Trade(
             id=new_id(), run_id=run.id, entry_bar=t.entry_bar, exit_bar=t.exit_bar,
+            entry_time=t.entry_time, exit_time=t.exit_time,
             direction=t.direction, qty=money_str(t.qty), entry_price=money_str(t.entry_price),
             exit_price=money_str(t.exit_price), fees=money_str(t.fees),
             gross_pnl=money_str(t.gross_pnl), net_pnl=money_str(t.net_pnl),

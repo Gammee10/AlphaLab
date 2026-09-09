@@ -70,10 +70,30 @@ def create_backtest(body: BacktestRequest, request: Request) -> JSONResponse:
 def _trade_json(run_id: str, t: models.Trade, index: int) -> dict[str, Any]:
     return {
         "id": f"{run_id}:{index}", "entryBar": t.entry_bar, "exitBar": t.exit_bar,
+        "entryTime": t.entry_time, "exitTime": t.exit_time,
         "direction": t.direction, "qty": t.qty, "entryPrice": t.entry_price,
         "exitPrice": t.exit_price, "fees": t.fees, "grossPnl": t.gross_pnl,
         "netPnl": t.net_pnl, "exitReason": t.exit_reason, "ambiguous": bool(t.ambiguous),
     }
+
+
+@router.get("/backtests")
+def list_backtests(request: Request, limit: int = 20) -> dict[str, Any]:
+    from sqlalchemy import select
+
+    capped = max(1, min(limit, 100))
+    with session_of(request) as session:
+        runs = session.scalars(
+            select(models.BacktestRun).order_by(models.BacktestRun.created_at.desc()).limit(capped)
+        ).all()
+        return {"runs": [
+            {"id": r.id, "resultHash": r.result_hash, "strategyVersionId": r.strategy_version_id,
+             "datasetId": r.dataset_id, "engineVersion": r.engine_version,
+             "tradeCount": r.metrics.get("tradeCount"), "netProfit": r.metrics.get("netProfit"),
+             "winRate": r.metrics.get("winRate"), "profitFactor": r.metrics.get("profitFactor"),
+             "maxDrawdownPct": r.metrics.get("maxDrawdownPct"), "createdAt": r.created_at}
+            for r in runs
+        ]}
 
 
 @router.get("/backtests/{run_id}")

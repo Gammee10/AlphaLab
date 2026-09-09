@@ -53,6 +53,10 @@ export interface Run {
 
 export interface Trade {
   id: string;
+  entryBar: number;
+  exitBar: number;
+  entryTime: number | null;
+  exitTime: number | null;
   direction: string;
   qty: string;
   entryPrice: string;
@@ -100,6 +104,11 @@ export const api = {
       body: JSON.stringify(body),
     }),
   backtest: (body: unknown) => req<{ run: Run } | { job: Job }>("/api/backtests", { method: "POST", body: JSON.stringify(body) }),
+  runs: (limit = 20) => req<{ runs: RunSummary[] }>(`/api/backtests?limit=${limit}`),
+  datasetBars: (id: string, startMs: number, endMs: number, limit = 2000) =>
+    req<{ bars: Bar[]; total: number; downsampled: boolean }>(
+      `/api/datasets/${id}/bars?start_ms=${startMs}&end_ms=${endMs}&limit=${limit}`,
+    ),
   run: (id: string) => req<{ run: Run }>(`/api/backtests/${id}`),
   runTrades: (id: string, page: number) => req<{ trades: Trade[]; total: number }>(`/api/backtests/${id}/trades?page=${page}&pageSize=50`),
   job: (id: string) => req<{ job: Job }>(`/api/jobs/${id}`),
@@ -140,12 +149,25 @@ export interface Dataset {
 }
 
 export interface Bar {
-  openTime: number;
+  time: number;
   open: number;
   high: number;
   low: number;
   close: number;
-  volume: number;
+}
+
+export interface RunSummary {
+  id: string;
+  resultHash: string;
+  strategyVersionId: string;
+  datasetId: string;
+  engineVersion: string;
+  tradeCount: number | null;
+  netProfit: string | null;
+  winRate: number | null;
+  profitFactor: number | null;
+  maxDrawdownPct: number | null;
+  createdAt: number;
 }
 
 export interface Job {

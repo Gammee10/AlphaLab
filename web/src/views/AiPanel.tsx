@@ -1,102 +1,127 @@
 import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { api, type Proposal } from "../api";
 
+interface Msg {
+  role: "user" | "ai";
+  text: string;
+  meta?: string;
+  proposal?: Proposal;
+}
+
 export function AiPanel({ versionId, runIds }: { versionId: string | null; runIds: string[] }) {
-  const status = useQuery({ queryKey: ["ai-status"], queryFn: api.aiStatus });
-  const [intent, setIntent] = useState("change stop to 1.5 ATR");
-  const [proposal, setProposal] = useState<Proposal | null>(null);
+  const [intent, setIntent] = useState("");
+  const [messages, setMessages] = useState<Msg[]>([]);
   const [error, setError] = useState("");
-  const [explanation, setExplanation] = useState("");
-  const [summary, setSummary] = useState("");
+
+  const push = (m: Msg) => setMessages((prev) => [...prev, m]);
 
   const propose = useMutation({
-    mutationFn: () => api.aiPropose({ strategyVersionId: versionId, runIds, intent }),
+    mutationFn: (text: string) => api.aiPropose({ strategyVersionId: versionId, runIds, intent: text }),
     onSuccess: (data) => {
-      setProposal(data.proposal);
+      const p = data.proposal;
+      push({
+        role: "ai",
+        text: p.message ?? p.patch.rationale ?? (p.validation.ok ? "Proposed changes (review below)." : "That proposal is invalid."),
+        meta: `${p.provider}${p.model ? ` · ${p.model}` : ""}${p.tokens ? ` · ${p.tokens} tokens` : ""}${p.fallbackReason ? ` · fallback: ${p.fallbackReason}` : ""}`,
+        proposal: p,
+      });
       setError("");
     },
     onError: (e: Error & { code?: string }) => setError(`${e.code ?? "ERROR"}: ${e.message}`),
   });
+
   const confirm = useMutation({
-    mutationFn: () => api.aiConfirm(proposal!.id),
-    onSuccess: () => {
-      setProposal(null);
-      setError("");
-      alert("New strategy version created.");
+    mutationFn: (id: string) => api.aiConfirm(id),
+    onSuccess: (data) => {
+      push({ role: "ai", text: `Confirmed — new strategy version ${data.version.id.slice(0, 8)} created. History preserved.` });
+      setMessages((prev) => prev.map((m) => (m.proposal ? { ...m, proposal: { ...m.proposal!, status: "confirmed" } } : m)));
     },
     onError: (e: Error & { code?: string }) => setError(`${e.code ?? "ERROR"}: ${e.message}`),
   });
+
+  const ask = async (kind: "explain" | "summarize") => {
+    try {
+      const out =
+        kind === "explain" && versionId
+          ? await api.aiExplain(versionId)
+          : await api.aiSummarize(runIds);
+      push({ role: "ai", text: out.text, meta: `${out.provider} · ${out.model} · ${out.tokens} tokens${out.cached ? " · cached" : ""}` });
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  const send = () => {
+    const text = intent.trim();
+    if (!text || !versionId || propose.isPending) return;
+    push({ role: "user", text });
+    setIntent("");
+    propose.mutate(text);
+  };
 
   return (
     <div>
       <h2>AI assistant</h2>
-      {status.data && !status.data.keyConfigured && (
-        <p className="banner">AI offline — deterministic assistant active. Add a Gemini key server-side for NL.</p>
-      )}
-      <label>
-        Intent
-        <input value={intent} onChange={(e) => setIntent(e.target.value)} size={60} />
-      </label>
-      <button onClick={() => propose.mutate()} disabled={!versionId || propose.isPending}>
-        Propose change
-      </button>
+      <div className="chat">
+        {messages.length === 0 && (
+          <p className="muted">Describe a change (“widen the stop to 2 ATR”, “only trade London/New York”) — proposals are validated and need your confirm. Nothing applies itself.</p>
+        )}
+        {messages.map((m, i) => (
+          <div key={i} className={`msg ${m.role}`}>
+            {m.text}
+            {m.proposal && (
+              <>
+                <ul className="ops">
+                  {m.proposal.patch.ops.map((op, j) => (
+                    <li key={j}>
+                      <code>
+                        {op.op} {op.target ?? op.field ?? op.filter ?? ""} {JSON.stringify(op.value ?? "")}
+                      </code>
+                    </li>
+                  ))}
+                </ul>
+                {!m.proposal.validation.ok && (
+                  <ul>
+                    {m.proposal.validation.errors.map((e, j) => (
+                      <li key={j} className="error">
+                        {e.code}: {e.message}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {m.proposal.status === "proposed" && m.proposal.validation.ok && (
+                  <button className="primary" onClick={() => confirm.mutate(m.proposal!.id)}>
+                    Confirm → new version
+                  </button>
+                )}
+              </>
+            )}
+            {m.meta && <div className="meta">{m.meta}</div>}
+          </div>
+        ))}
+        {propose.isPending && <div className="msg ai">Thinking…</div>}
+      </div>
       {error && <p className="error">{error}</p>}
-      {proposal && (
-        <div className="card">
-          <p>
-            <strong>{proposal.provider}</strong> {proposal.model ?? ""} ·{" "}
-            {proposal.validation.ok ? "valid" : "INVALID"}
-            {proposal.fallbackReason ? ` · fallback: ${proposal.fallbackReason}` : ""}
-          </p>
-          <ul>
-            {proposal.patch.ops.map((op, i) => (
-              <li key={i}>
-                <code>
-                  {op.op} {op.target ?? op.field ?? op.filter ?? ""} {JSON.stringify(op.value ?? "")}
-                </code>
-              </li>
-            ))}
-          </ul>
-          {!proposal.validation.ok && (
-            <ul>
-              {proposal.validation.errors.map((e, i) => (
-                <li key={i} className="error">
-                  {e.code}: {e.message}
-                </li>
-              ))}
-            </ul>
-          )}
-          {proposal.message && <p className="muted">{proposal.message}</p>}
-          <button onClick={() => confirm.mutate()} disabled={!proposal.validation.ok}>
-            Confirm → new version
-          </button>
-        </div>
-      )}
-      <div>
-        <button
-          onClick={async () => {
-            if (!versionId) return;
-            const out = await api.aiExplain(versionId);
-            setExplanation(`${out.text}\n\n— ${out.provider} ${out.model}, ${out.tokens} tokens`);
-          }}
-          disabled={!versionId}
-        >
+      <div className="row">
+        <input
+          value={intent}
+          onChange={(e) => setIntent(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && send()}
+          placeholder="Describe a strategy change…"
+          size={60}
+        />
+        <button className="primary" onClick={send} disabled={!versionId || propose.isPending}>
+          Send
+        </button>
+        <button className="ghost" onClick={() => ask("explain")} disabled={!versionId}>
           Explain strategy
         </button>
-        <button
-          onClick={async () => {
-            if (runIds.length === 0) return;
-            const out = await api.aiSummarize(runIds);
-            setSummary(`${out.text}\n\n— ${out.provider} ${out.model}, ${out.tokens} tokens`);
-          }}
-          disabled={runIds.length === 0}
-        >
+        <button className="ghost" onClick={() => ask("summarize")} disabled={runIds.length === 0}>
           Summarize runs
         </button>
       </div>
-      {explanation && <pre>{explanation}</pre>}
-      {summary && <pre>{summary}</pre>}
+      {!versionId && <p className="muted">Open a strategy first — proposals need a base version.</p>}
     </div>
   );
 }

@@ -112,6 +112,8 @@ class Trade(Base):
     run_id: Mapped[str] = mapped_column(String, index=True)
     entry_bar: Mapped[int] = mapped_column(Integer)
     exit_bar: Mapped[int] = mapped_column(Integer)
+    entry_time: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    exit_time: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     direction: Mapped[str] = mapped_column(String)
     qty: Mapped[str] = mapped_column(String)
     entry_price: Mapped[str] = mapped_column(String)

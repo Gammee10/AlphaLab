@@ -182,6 +182,29 @@ def get_dataset(dataset_id: str, request: Request) -> dict[str, Any]:
         }
 
 
+@router.get("/datasets/{dataset_id}/bars")
+def dataset_bars(dataset_id: str, request: Request, start_ms: int = 0,
+                 end_ms: int = 2**63 - 1, limit: int = 2000) -> dict[str, Any]:
+    """Chart feed: OHLC bars in [start_ms, end_ms], deterministically downsampled."""
+    with session_of(request) as session:
+        dataset = session.get(models.Dataset, dataset_id)
+        if dataset is None:
+            raise KeyError(f"dataset not found: {dataset_id}")
+        bars = [b for b in repos.get_dataset_bars(session, dataset_id)
+                if start_ms <= b.open_time <= end_ms]
+        total = len(bars)
+        downsampled = False
+        if total > max(1, limit):
+            step = total / max(1, limit)
+            bars = [bars[int(i * step)] for i in range(max(1, limit))]
+            downsampled = True
+        return {
+            "bars": [{"time": b.open_time // 1000, "open": b.open, "high": b.high,
+                      "low": b.low, "close": b.close} for b in bars],
+            "total": total, "downsampled": downsampled,
+        }
+
+
 @router.get("/templates/{template_id}/preview")
 def template_preview(template_id: str, request: Request) -> dict[str, Any]:
     del request

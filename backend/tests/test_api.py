@@ -121,7 +121,8 @@ def test_dataset_import_dedupe_and_errors(client: TestClient) -> None:
 
 
 def test_backtest_one_trade_run(client: TestClient) -> None:
-    run = backtest(client, make_strategy(client), make_dataset(client))
+    dataset_id = make_dataset(client)
+    run = backtest(client, make_strategy(client), dataset_id)
     assert run["engineVersion"] == "engine/1.0"
     assert run["metrics"]["tradeCount"] == 1
     assert run["metrics"]["netProfit"] == "-100"
@@ -129,6 +130,11 @@ def test_backtest_one_trade_run(client: TestClient) -> None:
     assert any("next-open" in a for a in run["assumptions"])
     detail = client.get(f"/api/backtests/{run['id']}").json()["run"]
     assert len(detail["trades"]) == 1 and detail["trades"][0]["exitReason"] == "stop"
+    assert detail["trades"][0]["entryTime"] and detail["trades"][0]["exitTime"]
+    listing = client.get("/api/backtests?limit=10").json()["runs"]
+    assert any(r["id"] == run["id"] for r in listing)
+    bars = client.get(f"/api/datasets/{dataset_id}/bars?limit=3").json()
+    assert bars["total"] == 5 and len(bars["bars"]) == 3 and bars["downsampled"] is True
     page = client.get(f"/api/backtests/{run['id']}/trades?page=0&pageSize=1").json()
     assert page["total"] == 1 and len(page["trades"]) == 1
     # Resubmission dedupes by content hash.

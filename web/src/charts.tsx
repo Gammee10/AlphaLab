@@ -1,60 +1,158 @@
-import { useMemo } from "react";
-import { toPoints } from "./format";
+import { useEffect, useRef } from "react";
+import {
+  AreaSeries,
+  CandlestickSeries,
+  ColorType,
+  LineSeries,
+  createChart,
+  createSeriesMarkers,
+  type IChartApi,
+  type ISeriesApi,
+  type UTCTimestamp,
+} from "lightweight-charts";
+import type { Bar, Trade } from "./api";
 
-function path(pts: { t: number; e: number }[], w: number, h: number, pad: number): string {
-  if (pts.length === 0) return "";
-  const ts = pts.map((p) => p.t);
-  const es = pts.map((p) => p.e);
-  const t0 = Math.min(...ts);
-  const t1 = Math.max(...ts);
-  const e0 = Math.min(...es);
-  const e1 = Math.max(...es);
-  const X = (t: number) => (t1 === t0 ? pad : pad + ((t - t0) / (t1 - t0)) * (w - 2 * pad));
-  const Y = (e: number) => (e1 === e0 ? h / 2 : h - pad - ((e - e0) / (e1 - e0)) * (h - 2 * pad));
-  return pts.map((p, i) => `${i === 0 ? "M" : "L"}${X(p.t).toFixed(1)},${Y(p.e).toFixed(1)}`).join(" ");
+const TEXT = "#8b93a3";
+const GRID = "rgba(35, 44, 61, 0.6)";
+const UP = "#26a69a";
+const DOWN = "#ef5350";
+
+function useChart(ref: React.RefObject<HTMLDivElement>, height: number): React.MutableRefObject<IChartApi | null> {
+  const chartRef = useRef<IChartApi | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const chart = createChart(el, {
+      layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: TEXT },
+      grid: { vertLines: { color: GRID }, horzLines: { color: GRID } },
+      width: el.clientWidth || 640,
+      height,
+      timeScale: { timeVisible: true, secondsVisible: false },
+    });
+    chartRef.current = chart;
+    const ro = new ResizeObserver(() => chart.applyOptions({ width: el.clientWidth || 640 }));
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      chart.remove();
+      chartRef.current = null;
+    };
+  }, [ref, height]);
+  return chartRef;
 }
 
-export function EquityChart({ curve, width = 640, height = 220 }: { curve: [number, string][]; width?: number; height?: number }) {
-  const pts = useMemo(() => toPoints(curve), [curve]);
-  const d = useMemo(() => path(pts, width, height, 12), [pts, width, height]);
-  if (pts.length === 0) return <p className="muted">No equity data.</p>;
-  const last = pts[pts.length - 1].e;
-  const first = pts[0].e;
-  return (
-    <figure>
-      <svg width={width} height={height} role="img" aria-label="Equity curve">
-        <path d={d} fill="none" stroke={last >= first ? "#1a7f37" : "#b42318"} strokeWidth={1.5} />
-      </svg>
-      <figcaption className="muted">
-        {pts.length} points · {first.toFixed(2)} → {last.toFixed(2)}
-      </figcaption>
-    </figure>
-  );
+function exitLabel(reason: string): string {
+  if (reason === "stop") return "SL";
+  if (reason === "target") return "TP";
+  if (reason === "trailing") return "TS";
+  if (reason === "time") return "T";
+  if (reason === "opposite") return "REV";
+  return "×";
 }
 
-export function OverlayChart({ curves }: { curves: { label: string; points: { t: number; pct: number }[] }[] }) {
-  const width = 640;
-  const height = 220;
-  const all = curves.flatMap((c) => c.points);
-  const ts = all.map((p) => p.t);
-  const ps = all.map((p) => p.pct);
-  const t0 = Math.min(...ts);
-  const t1 = Math.max(...ts);
-  const lo = Math.min(...ps);
-  const hi = Math.max(...ps);
-  const colors = ["#1a7f37", "#175cd3", "#b42318", "#7a5af8"];
-  return (
-    <svg width={width} height={height} role="img" aria-label="Normalized equity overlay">
-      {curves.map((c, i) => {
-        const d = c.points
-          .map((p, j) => {
-            const x = t1 === t0 ? 12 : 12 + ((p.t - t0) / (t1 - t0)) * (width - 24);
-            const y = hi === lo ? height / 2 : height - 12 - ((p.pct - lo) / (hi - lo)) * (height - 24);
-            return `${j === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-          })
-          .join(" ");
-        return <path key={c.label} d={d} fill="none" stroke={colors[i % colors.length]} strokeWidth={1.5} />;
-      })}
-    </svg>
-  );
+export function PriceChart({ bars, trades, height = 380 }: { bars: Bar[]; trades: Trade[]; height?: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const chartRef = useChart(ref, height);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || bars.length === 0) return;
+    const series: ISeriesApi<"Candlestick"> = chart.addSeries(CandlestickSeries, {
+      upColor: UP,
+      downColor: DOWN,
+      wickUpColor: UP,
+      wickDownColor: DOWN,
+      borderVisible: false,
+    });
+    series.setData(
+      bars.map((b) => ({ time: b.time as UTCTimestamp, open: b.open, high: b.high, low: b.low, close: b.close })),
+    );
+    const markers = trades.flatMap((t) => {
+      const out = [];
+      if (t.entryTime) {
+        out.push({
+          time: Math.floor(t.entryTime / 1000) as UTCTimestamp,
+          position: t.direction === "long" ? ("belowBar" as const) : ("aboveBar" as const),
+          color: t.direction === "long" ? UP : DOWN,
+          shape: t.direction === "long" ? ("arrowUp" as const) : ("arrowDown" as const),
+          text: t.direction === "long" ? "L" : "S",
+        });
+      }
+      if (t.exitTime) {
+        out.push({
+          time: Math.floor(t.exitTime / 1000) as UTCTimestamp,
+          position: t.direction === "long" ? ("aboveBar" as const) : ("belowBar" as const),
+          color: DOWN,
+          shape: t.direction === "long" ? ("arrowDown" as const) : ("arrowUp" as const),
+          text: exitLabel(t.exitReason),
+        });
+      }
+      return out;
+    });
+    if (markers.length > 0) createSeriesMarkers(series, markers);
+    chart.timeScale().fitContent();
+    return () => {
+      chart.removeSeries(series);
+    };
+  }, [chartRef, bars, trades]);
+
+  if (bars.length === 0) return <p className="muted">No price data in range.</p>;
+  return <div ref={ref} style={{ width: "100%" }} />;
+}
+
+export function EquityChart({ curve, height = 220 }: { curve: [number, string][]; height?: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const chartRef = useChart(ref, height);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || curve.length === 0) return;
+    const data = curve.map(([t, e]) => ({ time: Math.floor(t / 1000) as UTCTimestamp, value: Number(e) }));
+    const area = chart.addSeries(AreaSeries, { lineColor: "#2f81f7", topColor: "rgba(47,129,247,0.35)", bottomColor: "rgba(47,129,247,0.02)" });
+    area.setData(data);
+    // Drawdown pane (equity minus running peak) on an overlay scale.
+    let peak = -Infinity;
+    const dd = data.map((p) => {
+      peak = Math.max(peak, p.value);
+      return { time: p.time, value: p.value - peak };
+    });
+    const ddSeries = chart.addSeries(AreaSeries, {
+      lineColor: DOWN,
+      topColor: "rgba(239,83,80,0.25)",
+      bottomColor: "rgba(239,83,80,0.02)",
+      priceScaleId: "dd",
+    });
+    chart.priceScale("dd").applyOptions({ scaleMargins: { top: 0.7, bottom: 0 } });
+    ddSeries.setData(dd);
+    chart.timeScale().fitContent();
+    return () => {
+      chart.removeSeries(area);
+      chart.removeSeries(ddSeries);
+    };
+  }, [chartRef, curve]);
+
+  if (curve.length === 0) return <p className="muted">No equity data.</p>;
+  return <div ref={ref} style={{ width: "100%" }} />;
+}
+
+export function MultiEquity({ curves, height = 260 }: { curves: { label: string; points: { t: number; pct: number }[] }[]; height?: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const chartRef = useChart(ref, height);
+  const colors = ["#26a69a", "#2f81f7", "#ef5350", "#7a5af8", "#e2a63d"];
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const series = curves.map((c, i) => {
+      const s = chart.addSeries(LineSeries, { color: colors[i % colors.length], title: c.label, lineWidth: 2 });
+      s.setData(c.points.map((p) => ({ time: Math.floor(p.t / 1000) as UTCTimestamp, value: p.pct })));
+      return s;
+    });
+    chart.timeScale().fitContent();
+    return () => {
+      series.forEach((s) => chart.removeSeries(s));
+    };
+  }, [chartRef, curves]);
+
+  return <div ref={ref} style={{ width: "100%" }} />;
 }
