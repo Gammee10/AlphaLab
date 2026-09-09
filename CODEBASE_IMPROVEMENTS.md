@@ -259,7 +259,9 @@ A backtest that is wrong in the favorable direction is worse than a crash. Fix t
 - **Fix:** Raise `StrategyInvalidError("missing output selector")` in the engine instead of guessing; add test calling engine without validation.
 - **Validation:** Test asserting raise on missing `output` for multi-output indicators; existing validated paths unaffected.
 
-### H13 — Zero property tests despite an explicit mandate (no-lookahead/determinism unenforced)
+### H13 — Zero property tests despite an explicit mandate (no-lookahead/determinism unenforced) [IMPLEMENTED]
+
+> **Implementation note (2026-09-09):** Added `backend/tests/test_properties.py` (hypothesis 6.x, 30 examples each): determinism over random series (trades + equity + warnings identical), future-tail mutation invariance for already-closed trades (with `assume()` non-vacuity guard), exact-Decimal flat-close accounting identity (`equity[-1] == capital + Σ net_pnl`), and lot-step/minimum sizing discipline. One methodology note: the first domain draft (uniform closes to 10000) was vacuous — the 5x-notional cap skips everything there — so the domain is constrained to a tradable band around 100 with a comment explaining why. Validated: 4 properties green; they also fuzz-validate the C1/H1/H2 engine fixes.
 
 - **Category:** Testing
 - **Severity:** High
