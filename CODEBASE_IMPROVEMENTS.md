@@ -106,7 +106,9 @@ A backtest that is wrong in the favorable direction is worse than a crash. Fix t
 - **Implementation guidance:** Files `database.py`, `app.py` (lifespan), `deps.py`, `jobs.py`, `worker.py`. Careful with tests using tmp DBs — provide factory override fixture.
 - **Validation:** Soak test: 2 concurrent async jobs × several waves, assert zero `SQLITE_BUSY`; fd/engine-count assertion (exactly 1 engine per app); startup/shutdown disposal test.
 
-### C7 — `httpx` imported but missing from production requirements (all `/api/ai/*` broken on prod install)
+### C7 — `httpx` imported but missing from production requirements (all `/api/ai/*` broken on prod install) [IMPLEMENTED]
+
+> **Implementation note (2026-09-09):** Fixed both halves. `httpx>=0.27` added to `backend/requirements.txt`; top-level import removed from `routes_ai.py` in favor of a lazy import inside `_live_request_fn`, so AI routes import without httpx installed. If a Gemini path is ever reached without httpx, it now falls back to the rule-based provider with honest `fallbackReason: "transport"` (new `_httpx_available()` probe checked in propose/explain/summarize) instead of raising ImportError. Changed: `backend/requirements.txt`, `backend/alphalab_api/routes_ai.py`. Added `test_routes_import_without_httpx` (module reloads with httpx blocked) and `test_propose_transport_fallback` (key set + no transport → ruled + `transport` reason). Validated: ai route suites 11 passed; mypy clean on `routes_ai.py`.
 
 - **Category:** DevOps / Dependencies / API
 - **Severity:** Critical

@@ -58,6 +58,32 @@ def test_confirm_stale_patch_rejected(client: TestClient) -> None:
     assert stale.status_code == 409 and stale.json()["code"] == "STALE_PATCH"
 
 
+def test_routes_import_without_httpx(monkeypatch: pytest.MonkeyPatch) -> None:
+    import importlib
+    import sys
+
+    import alphalab_api.routes_ai as routes_ai
+
+    assert routes_ai._httpx_available() is True
+    monkeypatch.setitem(sys.modules, "httpx", None)
+    assert routes_ai._httpx_available() is False
+    reloaded = importlib.reload(routes_ai)
+    assert reloaded._httpx_available() is False
+
+
+def test_propose_transport_fallback(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    import alphalab_api.routes_ai as routes_ai
+
+    monkeypatch.setenv("GEMINI_API_KEY", "x")
+    monkeypatch.setattr(routes_ai, "_httpx_available", lambda: False)
+    version_id = make_strategy(client)
+    proposal = client.post("/api/ai/propose", json={
+        "strategyVersionId": version_id, "intent": "change risk to 2%"}).json()["proposal"]
+    assert proposal["provider"] == "ruled"
+    assert proposal.get("fallbackReason") == "transport"
+    assert proposal["validation"]["ok"] is True
+
+
 def test_explain_and_summarize_cached(client: TestClient) -> None:
     version_id = make_strategy(client)
     first = client.post("/api/ai/explain", json={"strategyVersionId": version_id}).json()

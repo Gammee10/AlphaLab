@@ -12,7 +12,6 @@ import json
 import os
 from typing import Any
 
-import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -33,7 +32,17 @@ from .settings import Settings
 router = APIRouter(prefix="/api/ai")
 
 
+def _httpx_available() -> bool:
+    try:
+        import httpx  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
 def _live_request_fn(url: str, body: dict[str, Any]) -> dict[str, Any]:
+    import httpx
+
     with httpx.Client(timeout=60.0) as client:
         response = client.post(url, json=body)
         if response.status_code == 429:
@@ -82,13 +91,17 @@ def propose(body: ProposeRequest, request: Request) -> dict[str, Any]:
             spec, base_hash = _current_spec(session, body.strategyVersionId)
         fallback_reason = None
         if provider == "gemini" and key is not None:
-            try:
-                patch = gemini.propose(spec, body.intent, key, _live_request_fn)
-            except gemini.QuotaExhausted:
+            if not _httpx_available():
                 provider = "ruled"
-                fallback_reason = "quota"
-            except gemini.ModelError as exc:
-                raise ValidationError(f"AI output rejected: {exc}") from None
+                fallback_reason = "transport"
+            else:
+                try:
+                    patch = gemini.propose(spec, body.intent, key, _live_request_fn)
+                except gemini.QuotaExhausted:
+                    provider = "ruled"
+                    fallback_reason = "quota"
+                except gemini.ModelError as exc:
+                    raise ValidationError(f"AI output rejected: {exc}") from None
         if provider == "ruled":
             raw = ruled.propose(spec, body.intent)
             patch = {"ops": raw["ops"], "rationale": raw.get("rationale", ""),
@@ -194,13 +207,17 @@ def explain(body: ExplainRequest, request: Request) -> dict[str, Any]:
         provider = _select_provider(settings, key)
         fallback_reason = None
         if provider == "gemini" and key is not None:
-            try:
-                result = gemini.explain(spec, key, _live_request_fn)
-            except gemini.QuotaExhausted:
+            if not _httpx_available():
                 provider = "ruled"
-                fallback_reason = "quota"
-            except gemini.ModelError as exc:
-                raise ValidationError(f"AI output rejected: {exc}") from None
+                fallback_reason = "transport"
+            else:
+                try:
+                    result = gemini.explain(spec, key, _live_request_fn)
+                except gemini.QuotaExhausted:
+                    provider = "ruled"
+                    fallback_reason = "quota"
+                except gemini.ModelError as exc:
+                    raise ValidationError(f"AI output rejected: {exc}") from None
         if provider == "ruled":
             result = ruled.explain(spec)
         footer = {"provider": result["provider"], "model": result["model"],
@@ -246,13 +263,17 @@ def summarize(body: SummarizeRequest, request: Request) -> dict[str, Any]:
         provider = _select_provider(settings, key)
         fallback_reason = None
         if provider == "gemini" and key is not None:
-            try:
-                result = gemini.summarize(runs, key, _live_request_fn, pro=body.usePro)
-            except gemini.QuotaExhausted:
+            if not _httpx_available():
                 provider = "ruled"
-                fallback_reason = "quota"
-            except gemini.ModelError as exc:
-                raise ValidationError(f"AI output rejected: {exc}") from None
+                fallback_reason = "transport"
+            else:
+                try:
+                    result = gemini.summarize(runs, key, _live_request_fn, pro=body.usePro)
+                except gemini.QuotaExhausted:
+                    provider = "ruled"
+                    fallback_reason = "quota"
+                except gemini.ModelError as exc:
+                    raise ValidationError(f"AI output rejected: {exc}") from None
         if provider == "ruled":
             first = runs[0]
             result = ruled.summarize(dict(first["metrics"]), dict(first["warnings"]),
