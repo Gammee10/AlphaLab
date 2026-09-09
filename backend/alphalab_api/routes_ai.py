@@ -40,11 +40,13 @@ def _httpx_available() -> bool:
     return True
 
 
-def _live_request_fn(url: str, body: dict[str, Any]) -> dict[str, Any]:
+def _live_request_fn(
+    url: str, body: dict[str, Any], headers: dict[str, str] | None = None
+) -> dict[str, Any]:
     import httpx
 
     with httpx.Client(timeout=60.0) as client:
-        response = client.post(url, json=body)
+        response = client.post(url, json=body, headers=headers or {})
         if response.status_code == 429:
             return {"status": 429}
         out = response.json() if response.content else {}

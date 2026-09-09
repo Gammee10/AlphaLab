@@ -16,9 +16,13 @@ def ok_response(payload: dict) -> dict:
 def test_propose_valid_patch() -> None:
     seen = {}
 
-    def transport(url: str, body: dict):
+    def transport(url: str, body: dict, headers: dict):
         seen["url"] = url
+        seen["headers"] = headers
         assert "generateContent" in url
+        # Key travels in the header, never the URL.
+        assert "key=" not in url and "key" not in url
+        assert headers["x-goog-api-key"] == "key"
         return ok_response({"ops": [{"op": "setRisk", "field": "riskPerTradePct", "value": 1.0}],
                             "rationale": "lower risk"})
 
@@ -29,7 +33,7 @@ def test_propose_valid_patch() -> None:
 
 
 def test_propose_rejects_disallowed_ops() -> None:
-    def transport(url: str, body: dict):
+    def transport(url: str, body: dict, headers: dict):
         return ok_response({"ops": [{"op": "exec", "code": "rm -rf"}], "rationale": "evil"})
 
     with pytest.raises(gemini.ModelError):
@@ -38,24 +42,37 @@ def test_propose_rejects_disallowed_ops() -> None:
 
 def test_propose_quota_and_garbage() -> None:
     with pytest.raises(gemini.QuotaExhausted):
-        gemini.propose({}, "x", "key", lambda u, b: {"status": 429})
+        gemini.propose({}, "x", "key", lambda u, b, h: {"status": 429})
     with pytest.raises(gemini.ModelError):
-        gemini.propose({}, "x", "key", lambda u, b: {"status": 200, "candidates": []})
+        gemini.propose({}, "x", "key", lambda u, b, h: {"status": 200, "candidates": []})
     with pytest.raises(gemini.ModelError):
         gemini.propose({}, "x", "key",
-                       lambda u, b: {"status": 200, "candidates": [{"content": {"parts": [{"text": "not json"}]}}]})
+                       lambda u, b, h: {"status": 200, "candidates": [{"content": {"parts": [{"text": "not json"}]}}]})
+
+
+def test_provider_error_body_redacted() -> None:
+    leaked = "error for AIzaSyD0_fake_key_material_12345, token=abc123"
+
+    def transport(url: str, body: dict, headers: dict):
+        return {"status": 500, "body": leaked}
+
+    with pytest.raises(gemini.ModelError) as exc_info:
+        gemini.propose({}, "x", "key", transport)
+    assert "fake_key_material" not in str(exc_info.value)
+    assert "abc123" not in str(exc_info.value)
+    assert gemini.redact_secrets("a key=SUPERSECRET b") == "a [redacted] b"
 
 
 def test_summarize_grounding() -> None:
     runs = [{"runId": "r1", "metrics": {"netProfit": "10", "tradeCount": 5}}]
 
-    def good(url: str, body: dict):
+    def good(url: str, body: dict, headers: dict):
         return ok_response({"text": "Up 10 over 5 trades.", "citations": ["metrics.netProfit"]})
 
     out = gemini.summarize(runs, "key", good)
     assert out["citations"] == ["metrics.netProfit"]
 
-    def bad(url: str, body: dict):
+    def bad(url: str, body: dict, headers: dict):
         return ok_response({"text": "Sharpe 9.", "citations": ["metrics.sharpe"]})
 
     with pytest.raises(gemini.ModelError, match="ungrounded"):
@@ -69,7 +86,7 @@ def test_summarize_pro_model_and_explain() -> None:
     runs = [{"runId": "r1", "metrics": {"netProfit": "10"}}]
     seen = {}
 
-    def transport(url: str, body: dict):
+    def transport(url: str, body: dict, headers: dict):
         seen["url"] = url
         return ok_response({"text": "t", "citations": ["metrics.netProfit"]})
 

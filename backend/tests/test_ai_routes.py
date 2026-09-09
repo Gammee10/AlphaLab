@@ -84,6 +84,45 @@ def test_propose_transport_fallback(client: TestClient, monkeypatch: pytest.Monk
     assert proposal["validation"]["ok"] is True
 
 
+def test_live_request_fn_sends_key_in_header(monkeypatch: pytest.MonkeyPatch) -> None:
+    import sys
+    import types
+
+    import alphalab_api.routes_ai as routes_ai
+
+    calls: dict = {}
+
+    class _Resp:
+        status_code = 200
+        content = b"{}"
+        text = "{}"
+
+        def json(self) -> dict:
+            return {}
+
+    class _Client:
+        def __init__(self, **kwargs: object) -> None:
+            calls["timeout"] = kwargs.get("timeout")
+
+        def __enter__(self) -> "_Client":
+            return self
+
+        def __exit__(self, *args: object) -> bool:
+            return False
+
+        def post(self, url: str, json: object = None, headers: object = None) -> _Resp:
+            calls.update(url=url, body=json, headers=headers)
+            return _Resp()
+
+    fake = types.ModuleType("httpx")
+    fake.Client = _Client  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "httpx", fake)
+    out = routes_ai._live_request_fn("https://example.test/x", {"a": 1}, {"x-goog-api-key": "SECRET"})
+    assert out["status"] == 200
+    assert "SECRET" not in calls["url"] and "key=" not in calls["url"]
+    assert calls["headers"] == {"x-goog-api-key": "SECRET"}
+
+
 def test_explain_and_summarize_cached(client: TestClient) -> None:
     version_id = make_strategy(client)
     first = client.post("/api/ai/explain", json={"strategyVersionId": version_id}).json()

@@ -205,7 +205,9 @@ A backtest that is wrong in the favorable direction is worse than a crash. Fix t
 - **Fix:** Persist internal detail to server logs only; store a stable code + request id in `job.error`; add the promised redaction filter (`key|token|secret|authorization`) to all logging.
 - **Validation:** Failure test asserting response/row contains code + id but no traceback/SQL/paths; grep test that no `exc` interpolation reaches the DB model.
 
-### H8 — Gemini key sent in URL query string; promised log redaction does not exist
+### H8 — Gemini key sent in URL query string; promised log redaction does not exist [IMPLEMENTED]
+
+> **Implementation note (2026-09-09):** Fixed. `_endpoint()` no longer takes the key; it travels in the `x-goog-api-key` header via `_headers()`, and the `request_fn(url, body, headers)` contract changed accordingly (replay transports updated). New `redact_secrets()` scrubs `key|token|secret|authorization` assignments, `AIza…` material, and header echoes; applied to provider error bodies before they enter `ModelError` (which reaches API responses). `_live_request_fn` forwards headers to httpx. Changed: `backend/alphalab_ai/gemini.py`, `backend/alphalab_api/routes_ai.py`. Tests: all replay transports assert key-in-header/not-in-URL; new `test_provider_error_body_redacted` and `test_live_request_fn_sends_key_in_header` (stubbed httpx). Validated: ai suites 13 passed; mypy clean. Out of scope (noted): dev-only `scripts/probe_gemini*.py` still use query-key auth — L5 scripts cleanup should convert or retire them.
 
 - **Category:** Security
 - **Severity:** High

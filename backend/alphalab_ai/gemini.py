@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from typing import Any, Callable
 
 PROVIDER = "gemini"
@@ -45,8 +46,29 @@ def _truncate(text: str, budget: int) -> tuple[str, bool]:
     return text[:chars] + TRUNCATION_NOTE, True
 
 
-def _endpoint(model: str, key: str) -> str:
-    return f"{API_BASE}/models/{model}:generateContent?key={key}"
+_SECRET_PATTERNS = (
+    re.compile(r"(?i)(key|token|secret|authorization)\s*=\s*[^\s&;]+"),
+    re.compile(r"AIza[0-9A-Za-z\-_]{20,}"),
+    re.compile(r"x-goog-api-key['\"]?\s*:\s*[^\s\"',}]+", re.IGNORECASE),
+)
+
+
+def redact_secrets(text: str) -> str:
+    """Scrub key-like material (docs/security.md redaction promise)."""
+    redacted = text
+    for pattern in _SECRET_PATTERNS:
+        redacted = pattern.sub("[redacted]", redacted)
+    return redacted
+
+
+def _endpoint(model: str) -> str:
+    # The API key travels in the x-goog-api-key header, never the URL
+    # (URLs land in proxy/HTTP-client logs).
+    return f"{API_BASE}/models/{model}:generateContent"
+
+
+def _headers(key: str) -> dict[str, str]:
+    return {"x-goog-api-key": key, "Content-Type": "application/json"}
 
 
 def _generate(request_fn: Callable[..., Any], model: str, key: str, prompt: str,
@@ -59,11 +81,11 @@ def _generate(request_fn: Callable[..., Any], model: str, key: str, prompt: str,
             "responseMimeType": "application/json", "responseSchema": schema,
         },
     }
-    response = request_fn(_endpoint(model, key), body)
+    response = request_fn(_endpoint(model), body, _headers(key))
     if response.get("status") == 429:
         raise QuotaExhausted("Gemini free-tier quota exhausted")
     if response.get("status") not in (None, 200):
-        body_text = response.get("body", "")
+        body_text = redact_secrets(str(response.get("body", "")))
         raise ModelError(f"Gemini error {response.get('status')}: {body_text[:200]}")
     try:
         text = response["candidates"][0]["content"]["parts"][0]["text"]
