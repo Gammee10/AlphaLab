@@ -119,6 +119,22 @@ def test_job_lifecycle_cancel_recover(session) -> None:
     assert repos.recover_interrupted(session) == 0
 
 
+def test_session_factory_cached_per_path(tmp_path: Path) -> None:
+    from alphalab_store.database import (
+        dispose_session_factories,
+        get_session_factory,
+    )
+
+    a = tmp_path / "a.sqlite3"
+    b = tmp_path / "b.sqlite3"
+    assert get_session_factory(a) is get_session_factory(a)
+    assert get_session_factory(a) is not get_session_factory(b)
+    # Usable after dispose (pools reopen on demand).
+    dispose_session_factories()
+    with get_session_factory(a)() as s:
+        assert s.execute(text("SELECT 1")).scalar() == 1
+
+
 def test_downsample_bound_and_stable() -> None:
     equity = [(i, Decimal(i)) for i in range(5000)]
     curve = repos.downsample_equity(equity)

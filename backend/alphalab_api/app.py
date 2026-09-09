@@ -15,7 +15,7 @@ from alphalab_contracts import AlphaLabError
 from alphalab_core.templates import PARAM_SCHEMAS, TEMPLATES
 from alphalab_marketdata import DatasetInvalid as MarketDatasetInvalid
 from alphalab_store import models, repos
-from alphalab_store.database import migrate, session_factory
+from alphalab_store.database import dispose_session_factories, get_session_factory, migrate
 
 from .deps import alphalab_error_handler
 from .routes_ai import router as ai_router
@@ -56,10 +56,11 @@ def create_app(db_path: Path | str | None = None) -> FastAPI:
             repos.recover_interrupted(session)
             session.commit()
         yield
+        dispose_session_factories()
 
     app = FastAPI(title="AlphaLab", version="0.1.0", lifespan=lifespan)
     app.state.settings = settings
-    app.state.session_factory = session_factory(settings.db_path)
+    app.state.session_factory = get_session_factory(settings.db_path)
     app.include_router(catalog_router)
     app.include_router(runs_router)
     app.include_router(ai_router)

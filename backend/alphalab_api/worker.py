@@ -22,7 +22,7 @@ if _BACKEND not in sys.path:
 
 def check_cancelled(db_path: str, job_id: str, bar: int) -> bool:
     del bar  # signature fixed for the engine hook; polling is coarse by design
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, timeout=10.0)
     try:
         row = conn.execute(
             "SELECT state, cancel_requested FROM backtest_jobs WHERE id = ?", (job_id,)

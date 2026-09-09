@@ -101,7 +101,9 @@ A backtest that is wrong in the favorable direction is worse than a crash. Fix t
 - **Implementation guidance:** Introduce `RunRequest`/`SweepRequest` models in `alphalab_contracts/runs.py`; use them in both `routes_runs.py` paths; fix `deps.py` to map `ValueError`/`InvalidOperation` defensively. Add frontend pre-validation (M14) as defense in depth.
 - **Validation:** Parametrized API tests: negative/NaN/huge/missing fields → 400 with typed code, never 500; sweep with missing `startTime` → 400 not 404; property test that random invalid configs never 500.
 
-### C6 — New SQLAlchemy engine per call, never disposed; raw sqlite3 worker contends with WAL pool
+### C6 — New SQLAlchemy engine per call, never disposed; raw sqlite3 worker contends with WAL pool [IMPLEMENTED]
+
+> **Implementation note (2026-09-09):** Fixed with narrower scope than the audit assumed (verified: `app.state.session_factory` was already created once; only `jobs.py` built per-call factories). New process-wide `get_session_factory(db_path)` cache in `database.py` (thread-locked, keyed by resolved path) `+ dispose_session_factories()`; all four `jobs.py` call sites and `app.state` use it; lifespan disposes on shutdown; tests dispose via an autouse fixture. Connect listener now sets `WAL + synchronous=NORMAL + busy_timeout=5000` in one place; worker `check_cancelled` gets `timeout=10.0` like the progress path. Changed: `alphalab_store/database.py`, `__init__.py`, `alphalab_api/jobs.py`, `app.py`, `worker.py`, `tests/conftest.py`. Added `test_session_factory_cached_per_path` (identity per path, usable after dispose). Validated: full backend suite 126 passed (excl. perf); mypy clean on all touched files. One caught-during-work detail: SQLAlchemy 2 `sessionmaker` has no `.bind` — dispose goes through `factory.kw["bind"]`. Remaining: unifying the asyncio semaphore/executor lifetimes is H6, still pending.
 
 - **Category:** Performance / Reliability / Database
 - **Severity:** Critical

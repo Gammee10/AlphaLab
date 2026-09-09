@@ -23,7 +23,7 @@ from alphalab_core.engine import run_backtest
 from alphalab_core.instruments import INSTRUMENT_META_VERSION
 from alphalab_marketdata import TIMEFRAME_MS
 from alphalab_store import models, repos
-from alphalab_store.database import session_factory
+from alphalab_store.database import get_session_factory
 
 from . import worker
 from .service import assemble_payload, finish_prepared_run, prepare_run, to_engine_config, window_arrays
@@ -48,7 +48,7 @@ def _sem(settings: Settings) -> asyncio.Semaphore:
 
 
 def queued_depth(settings: Settings) -> int:
-    factory = session_factory(settings.db_path)
+    factory = get_session_factory(settings.db_path)
     with factory() as session:
         return int(
             session.scalar(
@@ -103,7 +103,7 @@ def _dedupe_hash(prep: dict[str, Any], engine_version: str, raw_trades: list[dic
 async def execute_async(
     settings: Settings, job_id: str, strategy_version_id: str, dataset_id: str, request: dict[str, Any]
 ) -> None:
-    factory = session_factory(settings.db_path)
+    factory = get_session_factory(settings.db_path)
     async with _sem(settings):
         with factory() as session:
             try:
@@ -176,7 +176,7 @@ async def execute_async(
 
 
 def _fail_sync_job(settings: Settings, job_id: str, exc: Exception) -> None:
-    factory = session_factory(settings.db_path)
+    factory = get_session_factory(settings.db_path)
     with factory() as session:
         code = getattr(exc, "code", "INTERNAL")
         repos.finish_job(session, job_id, "failed", f"{code}: {exc}")
@@ -191,7 +191,7 @@ def execute_sync(
     The job row is always terminal on return-or-raise, so failures can never
     orphan a ``queued`` row and inflate queue depth.
     """
-    factory = session_factory(settings.db_path)
+    factory = get_session_factory(settings.db_path)
     with factory() as session:
         prep = prepare_run(session, strategy_version_id=strategy_version_id, dataset_id=dataset_id, request=request)
         job = repos.create_job(session)
