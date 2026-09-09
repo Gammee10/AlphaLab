@@ -239,11 +239,18 @@ def run_backtest(
         for slot in ("stopLoss", "takeProfit", "trailing")
     )
 
-    def signal_and_filters(t: int, tree: Any, refs: set[str]) -> bool:
+    _eval_cache: dict[tuple[int, str], bool] = {}
+    _refs_cache = {"long": _referenced_ids(top), "short": _referenced_ids(mirrored)}
+    _max_warm = {side: max([values[r].warmup for r in refs] + [0]) for side, refs in _refs_cache.items()}
+    _filter_atr_warmup = 13  # internal ATR(14) warms bars [0, 13]
+    _exit_atr_warmup = values[atr_id].warmup if atr_id is not None else 0
+
+    def signal_and_filters(t: int, side: str, tree: Any, refs: set[str]) -> bool:
         """Full signal decision for bar t; counts warmup suppressions."""
         # Spec warmup rule: seeded indicators (EMA/MACD) are numeric from bar 0,
         # so NaN-suppression alone cannot cover them -- check warmup windows.
-        if any(values[r].warmup > t for r in refs):
+        # The max-window precheck makes this O(1) once warmed (hot-loop opt).
+        if t < _max_warm[side] and any(values[r].warmup > t for r in refs):
             warnings["warmupBarsSkipped"] = int(warnings["warmupBarsSkipped"]) + 1
             return False
         result = evaluator.node(tree, t)
@@ -260,6 +267,9 @@ def run_backtest(
         if spread_max is not None and costs.spread_bps > money(spread_max):
             return False
         if volatility.get("kind") == "atr-range":
+            if t < _filter_atr_warmup:
+                warnings["warmupBarsSkipped"] = int(warnings["warmupBarsSkipped"]) + 1
+                return False
             v = float(filter_atr.values["value"][t])
             if v != v:
                 warnings["warmupBarsSkipped"] = int(warnings["warmupBarsSkipped"]) + 1
@@ -269,9 +279,12 @@ def run_backtest(
                 return False
             if hi is not None and v > float(hi):
                 return False
-        if uses_exit_atr and atr_id is not None:
+        if uses_exit_atr and atr_id is not None and t < _exit_atr_warmup:
             # Sizing/trailing ATR must be available at the signal bar; a price-only
             # signal with a warming ATR cannot be sized -- suppress, don't guess.
+            warnings["warmupBarsSkipped"] = int(warnings["warmupBarsSkipped"]) + 1
+            return False
+        if uses_exit_atr and atr_id is not None:
             av = float(values[atr_id].values["value"][t])
             if av != av:
                 warnings["warmupBarsSkipped"] = int(warnings["warmupBarsSkipped"]) + 1
@@ -281,13 +294,12 @@ def run_backtest(
     # Each (signal bar, side) is evaluated at most once: the open phase reads
     # the same decision for opposite-close and entry handling. Without this,
     # warmup suppressions would be double-counted.
-    _eval_cache: dict[tuple[int, str], bool] = {}
-    _refs_cache = {"long": _referenced_ids(top), "short": _referenced_ids(mirrored)}
-
     def decided(t: int, side: str) -> bool:
         key = (t, side)
         if key not in _eval_cache:
-            _eval_cache[key] = signal_and_filters(t, top if side == "long" else mirrored, _refs_cache[side])
+            _eval_cache[key] = signal_and_filters(
+                t, side, top if side == "long" else mirrored, _refs_cache[side]
+            )
         return _eval_cache[key]
 
     def exit_levels(t: int, side: str, entry_est: Decimal) -> tuple[Decimal, Decimal | None, Decimal] | None:
@@ -441,10 +453,16 @@ def run_backtest(
                 warnings["gapsEncountered"] = int(warnings["gapsEncountered"]) + int(diff // config.bar_step_ms - 1)
         prev_time = cur_time
 
-        o = money(bars.open[i])
-        h = money(bars.high[i])
-        l = money(bars.low[i])
-        c = money(bars.close[i])
+        # Lazy Decimal conversion (hot-loop opt): H/L/C are only needed with an
+        # open position. Flat bars cost no Decimal arithmetic at all. Results
+        # are bit-identical: conversions are pure functions of bar data.
+        h: Decimal | None = None
+        l: Decimal | None = None
+        c: Decimal | None = None
+        if position is not None:
+            h = money(bars.high[i])
+            l = money(bars.low[i])
+            c = money(bars.close[i])
 
         # --- open-phase: time-stop closes, opposite-signal closes, pending entries ---
         if position is not None and position.time_bars is not None and i >= position.entry_bar + position.time_bars:
@@ -486,6 +504,12 @@ def run_backtest(
 
         # --- intrabar phase: stops / targets, then trailing ratchet ---
         if position is not None:
+            if h is None:
+                # Opened mid-bar above: materialize H/L/C for the checks below.
+                h = money(bars.high[i])
+                l = money(bars.low[i])
+                c = money(bars.close[i])
+            assert l is not None and c is not None
             s = position.stop
             t = position.target
             # A stop level moved by the trailing ratchet keeps its identity:
@@ -535,6 +559,7 @@ def run_backtest(
 
         unrealized = Decimal("0")
         if position is not None:
+            assert c is not None  # materialized above whenever a position is open
             if position.direction == "long":
                 unrealized = (c - position.entry_price) * position.qty
             else:
