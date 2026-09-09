@@ -23,5 +23,5 @@ jobs:
       - name: Backend tests
         run: python -m pytest backend/tests -q
       - name: Typecheck
-        run: python -m mypy alphalab_contracts alphalab_core
+        run: python -m mypy alphalab_contracts alphalab_core alphalab_marketdata
         working-directory: backend

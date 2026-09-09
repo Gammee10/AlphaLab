@@ -13,7 +13,7 @@ test-core:
 	$(PY) -m pytest $(BACKEND)/tests -q -k "not slow"
 
 typecheck:
-	cd $(BACKEND) && ../$(PY) -m mypy alphalab_contracts alphalab_core
+	cd $(BACKEND) && ../$(PY) -m mypy alphalab_contracts alphalab_core alphalab_marketdata
 
 purity:
 	$(PY) -m pytest $(BACKEND)/tests/test_purity.py -q

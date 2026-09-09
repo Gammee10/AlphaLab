@@ -5,5 +5,4 @@ __pycache__/
 .hypothesis/
 .mypy_cache/
 *.sqlite3
-data/*.csv
-!.gitkeep
+data/uploads/
