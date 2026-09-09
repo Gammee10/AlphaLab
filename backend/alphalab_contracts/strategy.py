@@ -31,6 +31,11 @@ _MAX_INDICATORS = 8
 _SESSIONLESS_TIMEFRAMES = ("H4", "D1")
 _KNOWN_OPERAND_KINDS = ("indicator", "price", "const")
 _KNOWN_INDICATOR_KINDS = ("EMA", "SMA", "RSI", "ATR", "MACD", "BB", "ADX", "Donchian", "VWAP")
+_MULTI_OUTPUTS = {
+    "MACD": ("macd", "signal", "histogram"),
+    "BB": ("upper", "middle", "lower"),
+    "Donchian": ("upper", "lower", "middle"),
+}
 
 
 def load_schema(path: Path | None = None) -> dict[str, Any]:
@@ -137,6 +142,45 @@ def validate_spec(spec: dict[str, Any]) -> list[ValidationIssue]:
                         "entry.conditions", "STRATEGY_INVALID", f"unknown indicator ref: {op['ref']!r}"
                     )
                 )
+    by_id = {i["id"]: i for i in indicators}
+    for leaf in leaves:
+        for side in ("left", "right"):
+            op = leaf[side]
+            if op["kind"] != "indicator" or op["ref"] not in by_id:
+                continue
+            kind = by_id[op["ref"]]["kind"]
+            allowed = _MULTI_OUTPUTS.get(kind)
+            output = op.get("output")
+            if allowed is None:
+                if output is not None and output != "value":
+                    issues.append(
+                        ValidationIssue(
+                            "entry.conditions",
+                            "STRATEGY_INVALID",
+                            f"single-output indicator {op['ref']!r} takes no output selector",
+                        )
+                    )
+            elif output not in allowed:
+                issues.append(
+                    ValidationIssue(
+                        "entry.conditions",
+                        "STRATEGY_INVALID",
+                        f"{kind} output must be one of {allowed}, got {output!r}",
+                    )
+                )
+    exits = spec["exits"]
+    uses_atr = any(
+        exits[slot].get("kind") == "atr" for slot in ("stopLoss", "takeProfit", "trailing") if isinstance(exits.get(slot), dict)
+    )
+    if uses_atr and not any(i["kind"] == "ATR" for i in indicators):
+        issues.append(
+            ValidationIssue(
+                "exits",
+                "STRATEGY_INVALID",
+                "atr-based exits require at least one declared ATR indicator "
+                "(the first declared ATR is used for sizing and trailing)",
+            )
+        )
     for ind in indicators:
         if ind["kind"] == "MACD" and not ind["fast"] < ind["slow"]:
             issues.append(

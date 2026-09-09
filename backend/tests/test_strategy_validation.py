@@ -222,6 +222,7 @@ def test_raise_wraps_invalid() -> None:
 def test_vwap_needs_volume() -> None:
     spec = valid_spec()
     spec["indicators"] = [{"id": "v", "kind": "VWAP"}]
+    spec["exits"]["stopLoss"] = {"kind": "pips", "pips": 10}
     spec["entry"]["conditions"] = [
         {
             "id": "c1",
@@ -233,6 +234,41 @@ def test_vwap_needs_volume() -> None:
     assert validate_spec(spec) == []
     assert [i.code for i in check_run_compatibility(spec, has_volume=False)] == ["DATASET_INVALID"]
     assert check_run_compatibility(spec, has_volume=True) == []
+
+
+def test_output_selector_rules() -> None:
+    macd = {"id": "m", "kind": "MACD", "fast": 12, "slow": 26, "signal": 9}
+    cond = {
+        "id": "c1",
+        "left": {"kind": "indicator", "ref": "m"},
+        "op": ">",
+        "right": {"kind": "const", "value": 0},
+    }
+    spec = valid_spec()
+    spec["indicators"] = [macd]
+    spec["exits"]["stopLoss"] = {"kind": "pips", "pips": 10}
+    spec["entry"]["conditions"] = [cond]
+    # Multi-output indicator without selector -> invalid.
+    assert "STRATEGY_INVALID" in codes(validate_spec(spec))
+    spec["entry"]["conditions"][0]["left"]["output"] = "bogus"
+    assert "STRATEGY_INVALID" in codes(validate_spec(spec))
+    spec["entry"]["conditions"][0]["left"]["output"] = "macd"
+    assert validate_spec(spec) == []
+    # Single-output indicator with a bogus selector -> invalid.
+    spec["indicators"] = [{"id": "e", "kind": "EMA", "period": 10}]
+    spec["entry"]["conditions"][0]["left"] = {"kind": "indicator", "ref": "e", "output": "upper"}
+    assert "STRATEGY_INVALID" in codes(validate_spec(spec))
+    spec["entry"]["conditions"][0]["left"] = {"kind": "indicator", "ref": "e"}
+    assert validate_spec(spec) == []
+
+
+def test_atr_exits_require_declared_atr() -> None:
+    spec = valid_spec()
+    spec["indicators"] = [i for i in spec["indicators"] if i["kind"] != "ATR"]
+    assert "STRATEGY_INVALID" in codes(validate_spec(spec))
+    spec["exits"]["stopLoss"] = {"kind": "pips", "pips": 10}
+    spec["exits"]["takeProfit"] = {"kind": "rr", "ratio": 2}
+    assert validate_spec(spec) == []
 
 
 def test_copy_isolation() -> None:

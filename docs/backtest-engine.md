@@ -27,6 +27,17 @@ pending = signal ? {direction, stopDist from ATR[t]/pips} : none   # stored for 
 
 Supported: **market entry at next open** + **attached SL/TP** (+ optional trailing / time-stop / opposite-signal exit). One position max per run.
 
+**Direction semantics (engine/1.0).** The condition tree is the *long* signal. Short
+signals evaluate the *mirrored* tree (`>`↔`<`, `>=`↔`<=`, crossesAbove↔crossesBelow;
+`==`/`!=` unchanged). `direction` gates entries only (`long`→long fills,
+`short`→short fills, `both`→either; both firing on one bar fills long).
+Opposite-signal exits always use the evaluated opposite side, so `oppositeSignalExit`
+works for long-only strategies too (mirror-based exit, no entry). A stop level
+moved by the trailing ratchet keeps its identity: exits off it are labeled
+`"trailing"`, not `"stop"`. Sizing/trailing ATR (first declared ATR) must be
+available at the signal bar — a price-only signal with a warming ATR is
+suppressed (warmup), never sized on NaN.
+
 On bar `t+1` with pending entry from signal bar `t`:
 
 - `rawFill = open[t+1]`.

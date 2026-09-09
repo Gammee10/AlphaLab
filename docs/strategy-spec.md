@@ -58,9 +58,15 @@ type IndicatorDef =
 
 type PriceField = "open"|"high"|"low"|"close";
 type Operand =
-  | { kind: "indicator"; ref: string; offsetBars?: number }  // offsetBars ≥ 0 only (0 = just-closed value); negative = reject (lookahead)
+  | { kind: "indicator"; ref: string; output?: string; offsetBars?: number }  // offsetBars ≥ 0 only (0 = just-closed value); negative = reject (lookahead)
   | { kind: "price"; field: PriceField; offsetBars?: number }
   | { kind: "const"; value: number };
+// output selects a channel of multi-output indicators (MACD: macd|signal|histogram;
+// BB: upper|middle|lower; Donchian: upper|lower|middle) and is REQUIRED for them.
+// Single-output kinds take no selector (or "value"). A missing/invalid selector
+// is STRATEGY_INVALID — the engine never guesses a channel.
+// ATR linkage: exits/trailing with kind "atr" use the FIRST declared ATR indicator.
+// Atr-based exits with no declared ATR indicator are STRATEGY_INVALID.
 
 type Condition = {
   id: string;
