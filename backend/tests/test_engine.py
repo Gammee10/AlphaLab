@@ -148,6 +148,30 @@ def test_end_of_data_exit_pays_exit_costs() -> None:
     assert tr.net_pnl == tr.gross_pnl - Decimal("200")
 
 
+def test_missing_output_selector_raises() -> None:
+    # Multi-output indicator without `output`: engine raises instead of guessing.
+    # Donchian(2) warms up after 1 bar, so the operand is really evaluated.
+    spec = base_spec()
+    spec["indicators"] = [{"id": "don", "kind": "Donchian", "period": 2}]
+    spec["entry"]["conditions"] = [
+        {"id": "c1", "left": {"kind": "indicator", "ref": "don"}, "op": ">", "right": {"kind": "const", "value": 0}}
+    ]
+    try:
+        run_backtest(spec, basic_bars(), cfg(end_ms=T0 + 4 * M15))
+    except ValueError as exc:
+        assert "output" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for missing output selector")
+    # Unknown output name also raises.
+    spec["entry"]["conditions"][0]["left"]["output"] = "bogus"
+    try:
+        run_backtest(spec, basic_bars(), cfg(end_ms=T0 + 4 * M15))
+    except ValueError as exc:
+        assert "bogus" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for unknown output name")
+
+
 def test_capital_skip() -> None:
     spec = base_spec()
     spec["risk"]["maxNotionalMult"] = 1  # 101*100=10100 > 10000

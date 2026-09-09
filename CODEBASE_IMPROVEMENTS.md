@@ -229,7 +229,9 @@ A backtest that is wrong in the favorable direction is worse than a crash. Fix t
 - **Fix (with C2/C3):** Atomic `INSERT ... WHERE count < limit` or a job-guard transaction; count sync jobs during execution.
 - **Validation:** Concurrent-burst test asserting depth never exceeds limit.
 
-### H12 — Engine guesses multi-output channel when validation is bypassed
+### H12 — Engine guesses multi-output channel when validation is bypassed [IMPLEMENTED]
+
+> **Implementation note (2026-09-09):** Fixed without an engine version bump (valid-spec behavior is bit-identical; the old path only triggered on specs the validator already rejects, so no stored run could have exercised it). `_Evaluator.operand` now raises `ValueError` when a multi-output indicator lacks `output`, or when the named output does not exist — stdlib exception to preserve `alphalab_core` purity (no contracts import). Changed: `backend/alphalab_core/engine.py`. Added `test_missing_output_selector_raises` (Donchian(2), warm after 1 bar so the operand is really evaluated; asserts both missing and bogus selectors raise). Validated: engine+purity suites green; full backend suite 119 passed (excl. perf), confirming templates/specs with proper selectors are unaffected.
 
 - **Category:** Backtesting Correctness
 - **Severity:** High

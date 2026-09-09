@@ -89,7 +89,18 @@ class _Evaluator:
             }[op["field"]]
             return float(series[i])
         ref = self._values[op["ref"]]
-        output = op.get("output") or next(iter(ref.values))
+        output = op.get("output")
+        if output is None:
+            if len(ref.values) > 1:
+                # Defense in depth: validation rejects this, but run_backtest is
+                # directly callable -- never guess a multi-output channel.
+                raise ValueError(
+                    f"indicator {op['ref']!r} has multiple outputs {sorted(ref.values)}; "
+                    "specify 'output'"
+                )
+            output = next(iter(ref.values))
+        if output not in ref.values:
+            raise ValueError(f"indicator {op['ref']!r} has no output {output!r}")
         v = float(ref.values[output][i])
         return v if v == v else None  # NaN (warming) vetoes
 
