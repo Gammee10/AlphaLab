@@ -221,3 +221,24 @@ def test_sweep_two_combos(client: TestClient) -> None:
         "baseSpec": SPEC, "sweepParams": {"risk.riskPerTradePct": list(range(40))},
         "datasetIds": [dataset_id], "baseConfig": {}})
     assert over.status_code == 400
+
+
+def test_sweep_partial_failure_isolated(client: TestClient) -> None:
+    dataset_id = make_dataset(client)
+    r = client.post("/api/experiments/sweep", json={
+        "baseSpec": SPEC, "sweepParams": {},
+        "datasetIds": [dataset_id, "missing-dataset"],
+        "baseConfig": {"startTime": T0, "endTime": T0 + 2 * M15, "initialCapital": "10000"}})
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert len(body["runIds"]) == 1 and len(body["failures"]) == 1
+    assert body["failures"][0]["datasetId"] == "missing-dataset"
+    detail = client.get(f"/api/experiments/{body['experiment']['id']}").json()
+    assert [run["id"] for run in detail["runs"]] == body["runIds"]
+    # Total failure is a 400 with per-combo details, not a 500.
+    all_bad = client.post("/api/experiments/sweep", json={
+        "baseSpec": SPEC, "sweepParams": {},
+        "datasetIds": ["missing-dataset"],
+        "baseConfig": {"startTime": T0, "endTime": T0 + 2 * M15, "initialCapital": "10000"}})
+    assert all_bad.status_code == 400
+    assert all_bad.json()["details"]["failures"]

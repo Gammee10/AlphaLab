@@ -371,6 +371,7 @@ def create_sweep(body: SweepRequest, request: Request) -> JSONResponse:
             raise ValidationError("sweep needs baseSpec or strategyId")
 
         planned: list[tuple[str, str]] = []
+        ephemeral_strategy_id: str | None = None
         for combo, dataset_id in itertools.product(combos, body.datasetIds):
             spec = json.loads(base_canonical)
             for path, value in combo.items():
@@ -386,11 +387,33 @@ def create_sweep(body: SweepRequest, request: Request) -> JSONResponse:
                 )
                 planned.append((swept.id, dataset_id))
             else:
-                planned.append((_ephemeral_version(session, spec), dataset_id))
+                # One shell strategy for the whole sweep, not one per combo.
+                if ephemeral_strategy_id is None:
+                    shell, _ = repos.create_strategy(
+                        session, name="sweep-base", spec_json=canonical_json(spec),
+                        spec_hash=spec_hash(spec),
+                        template_ref=None, provenance={"actor": "user", "patchSummary": "sweep base"},
+                    )
+                    ephemeral_strategy_id = shell.id
+                swept = repos.add_strategy_version(
+                    session, strategy_id=ephemeral_strategy_id,
+                    spec_json=canonical_json(spec), spec_hash=spec_hash(spec),
+                    provenance={"actor": "user", "patchSummary": f"sweep {combo}"},
+                )
+                planned.append((swept.id, dataset_id))
         session.commit()  # versions must be visible to the per-run sessions below
+    failures: list[dict[str, Any]] = []
     for version_id, dataset_id in planned:
-        run_json, _ = job_runner.execute_sync(settings, version_id, dataset_id, sweep_req)
+        try:
+            run_json, _ = job_runner.execute_sync(settings, version_id, dataset_id, sweep_req)
+        except Exception as exc:  # one bad combo must not 500 the whole sweep
+            code = getattr(exc, "code", "INTERNAL")
+            failures.append({"versionId": version_id, "datasetId": dataset_id,
+                             "code": code, "message": str(exc)})
+            continue
         run_ids.append(run_json["id"])
+    if not run_ids:
+        raise ValidationError("sweep produced no runs", {"failures": failures})
     with session_of(request) as session:
         exp = repos.create_experiment(
             session, name=f"sweep {len(run_ids)} runs", run_ids=run_ids,
@@ -398,7 +421,7 @@ def create_sweep(body: SweepRequest, request: Request) -> JSONResponse:
             hypothesis=f"params={body.sweepParams} datasets={body.datasetIds}",
         )
         session.commit()
-    return JSONResponse({"experiment": {"id": exp.id}, "runIds": run_ids}, 201)
+    return JSONResponse({"experiment": {"id": exp.id}, "runIds": run_ids, "failures": failures}, 201)
 
 
 def _set_path(spec: dict[str, Any], path: str, value: Any) -> None:
@@ -415,13 +438,4 @@ def _set_path(spec: dict[str, Any], path: str, value: Any) -> None:
     node[parts[-1]] = value
 
 
-def _ephemeral_version(session: Any, spec: dict[str, Any]) -> str:
-    """Sweep without a strategy: version rows need a strategy shell; create one."""
-    from alphalab_contracts import canonical_json, spec_hash
 
-    strategy, version = repos.create_strategy(
-        session, name="sweep-base", spec_json=canonical_json(spec), spec_hash=spec_hash(spec),
-        template_ref=None, provenance={"actor": "user", "patchSummary": "sweep base"},
-    )
-    del strategy
-    return version.id

@@ -76,7 +76,9 @@ A backtest that is wrong in the favorable direction is worse than a crash. Fix t
 - **Implementation guidance:** Files `jobs.py`, `repos.py`, `app.py` lifespan. Add `started_at` on sync start so staleness is detectable.
 - **Validation:** Test: sync run that raises → job is `failed`, `queued_depth` unchanged; restart-recovery test with stale `queued` row.
 
-### C4 — Sweep commits versions then runs unguarded: partial failure = 500 + orphaned versions/runs, no experiment
+### C4 — Sweep commits versions then runs unguarded: partial failure = 500 + orphaned versions/runs, no experiment [IMPLEMENTED]
+
+> **Implementation note (2026-09-09):** Fixed. Each sweep combo now runs inside try/except; failures are collected as `{versionId, datasetId, code, message}` and the experiment groups successful runs only. Response gains an additive `failures` array (old clients ignore it); an all-failed sweep returns 400 with per-combo details instead of 500. Ephemeral sweeps (no `strategyId`) now create one `sweep-base` shell strategy for the whole sweep instead of one per combo (dead `_ephemeral_version` helper removed). `docs/api.md` sweep shape corrected to `{ experiment, runIds, failures }`. Changed: `backend/alphalab_api/routes_runs.py`, `docs/api.md`. Added `test_sweep_partial_failure_isolated` (good + missing dataset → 201 with 1 run + 1 failure, experiment holds only the success; all-bad → 400 with failure details). Validated: full backend suite 125 passed (excl. perf); mypy clean. Limitation (for C2): combos still execute sequentially in-request; a 32-combo sweep still blocks — no async upgrade yet.
 
 - **Category:** Reliability / API
 - **Severity:** Critical

@@ -24,7 +24,7 @@ GET    /api/jobs/:jobId/events            → SSE: progress|completed|failed    
 
 POST   /api/experiments { name, runIds, baselineRunId?, hypothesis? } → { experiment }
 GET    /api/experiments/:id               → { experiment, runs: RunSummary[], diff, deltas }
-POST   /api/experiments/sweep { strategyId, baseSpec, sweepParams, datasetIds, baseConfig } → { experiment, jobs|runs }  # ≤32 combos
+POST   /api/experiments/sweep { strategyId, baseSpec, sweepParams, datasetIds, baseConfig } → { experiment, runIds, failures }  # ≤32 combos; per-combo failures isolated, experiment groups successes only
 
 POST   /api/ai/propose { strategyVersionId?, runIds?, intent } → { proposal }   # AI patch, unconfirmed; response includes provider/model/tokens
 POST   /api/ai/confirm { proposalId }      → { version }                        # validates patch → new StrategyVersion
