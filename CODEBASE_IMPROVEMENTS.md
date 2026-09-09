@@ -52,7 +52,9 @@ A backtest that is wrong in the favorable direction is worse than a crash. Fix t
   5. Edge cases: stop == open exactly (no gap, keep `s_px`); both stop+target touched + gap (stop-first still wins, at adverse open); trailing stops (same rule applies to trailed level).
 - **Validation:** New known-answer tests: long gap-down through stop, short gap-up through stop, gap exactly to stop, gap + both-touched. Hand-compute exit, fees, net P&L to the cent. Add synthetic gap fixture. Re-run golden runs and record hash changes in an ADR/migration note (old hashes were wrong).
 
-### C2 — Sync backtest path bypasses all concurrency/queue limits (DoS + threadpool exhaustion)
+### C2 — Sync backtest path bypasses all concurrency/queue limits (DoS + threadpool exhaustion) [IMPLEMENTED]
+
+> **Implementation note (2026-09-09):** Fixed at the admission + execution-slot level. Sync path now checks `queued_depth` (429 parity with async) and runs the engine under a non-blocking `threading.Semaphore(job_concurrency)` — exhaustion raises new `ExecutionBusy` → 429 `RATE_LIMITED` (registered in `app.py`, mapped in `deps.py`); the just-created job row is finalized as failed so depth stays clean. Same staleness caveat as the async semaphore (sized at first use; unifying lifetimes is H6, still pending) and sync/async slots do not coordinate under mixed load (documented localhost limitation, not silent). Changed: `backend/alphalab_api/jobs.py` (slots, `ExecutionBusy`, `_execute_sync_guarded` extraction), `routes_runs.py`, `deps.py`, `app.py`. Added `test_sync_slots_exhausted_429` and `test_sync_admission_respects_queue_limit`. Validated: full backend suite 130 passed (excl. perf); mypy clean. Residual: no per-request timeout on sync runs and no sweep async-upgrade — tracked under H6/M9.
 
 - **Category:** Reliability / API / Performance
 - **Severity:** Critical
@@ -234,7 +236,9 @@ A backtest that is wrong in the favorable direction is worse than a crash. Fix t
 - **Fix:** Thread `user_id` (from auth stub / `local` default) through all repo getters now, so the seam exists before auth does; or correct the doc to "single-user, no isolation" and add the seam as tech debt with an ADR. Implement the missing `GET /versions/:id` or remove it from docs.
 - **Validation:** Test asserting cross-`user_id` fetch denied once the parameter exists; contract test for the versions route.
 
-### H11 — Queue-limit check is TOCTOU-raced and excludes sync jobs
+### H11 — Queue-limit check is TOCTOU-raced and excludes sync jobs [IMPLEMENTED]
+
+> **Implementation note (2026-09-09):** Fixed together with C2. A module-level `_admission_lock` now serializes depth-check + job-insert on the async branch and the depth check on the sync branch; sync execution occupies a bounded slot, so bursts can no longer silently overfill. Changed: `backend/alphalab_api/routes_runs.py`. Covered by the C2 admission tests. Residual: strict cross-process atomicity still awaits real multi-user auth (H10); single-process localhost is now correct.
 
 - **Category:** Reliability / API
 - **Severity:** High

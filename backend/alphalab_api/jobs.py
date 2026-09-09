@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from concurrent.futures import ProcessPoolExecutor
 from decimal import Decimal
 from typing import Any
@@ -60,6 +61,18 @@ def _public_error(exc: Exception) -> str:
 
 _executor: ProcessPoolExecutor | None = None
 _semaphore: asyncio.Semaphore | None = None
+_sync_slots: threading.Semaphore | None = None
+_sync_slots_key: int | None = None
+
+
+class ExecutionBusy(Exception):
+    """Sync execution slots exhausted. Maps to 429 RATE_LIMITED."""
+
+    code = "RATE_LIMITED"
+
+    def __init__(self) -> None:
+        super().__init__("execution slots full; retry the backtest shortly")
+        self.message = str(self)
 
 
 def _pool(settings: Settings) -> ProcessPoolExecutor:
@@ -74,6 +87,17 @@ def _sem(settings: Settings) -> asyncio.Semaphore:
     if _semaphore is None:
         _semaphore = asyncio.Semaphore(settings.job_concurrency)
     return _semaphore
+
+
+def _sync_slot(settings: Settings) -> threading.Semaphore:
+    # Same staleness caveat as _sem (see H6): sized at first use from boot
+    # settings. Never nested, so non-blocking acquire cannot deadlock.
+    global _sync_slots, _sync_slots_key
+    if _sync_slots is None or _sync_slots_key != settings.job_concurrency:
+        _sync_slots = threading.Semaphore(settings.job_concurrency)
+        _sync_slots_key = settings.job_concurrency
+    assert _sync_slots is not None
+    return _sync_slots
 
 
 def queued_depth(settings: Settings) -> int:
@@ -225,6 +249,20 @@ def execute_sync(
         repos.set_job_running(session, job.id, prep["bar_count"])
         session.commit()
         job_id = job.id
+    slot = _sync_slot(settings)
+    if not slot.acquire(blocking=False):
+        # No engine work started; finalize so the row never dangles.
+        _fail_sync_job(settings, job_id, ExecutionBusy())
+        raise ExecutionBusy()
+    try:
+        return _execute_sync_guarded(settings, factory, prep, job_id)
+    finally:
+        slot.release()
+
+
+def _execute_sync_guarded(
+    settings: Settings, factory: Any, prep: dict[str, Any], job_id: str
+) -> tuple[dict[str, Any], bool]:
     try:
         payload = run_backtest(prep["spec"], window_arrays(prep), to_engine_config(prep))
     except Exception as exc:

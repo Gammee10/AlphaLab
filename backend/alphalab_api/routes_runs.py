@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import itertools
 import json
+import threading
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -20,6 +21,10 @@ from .deps import session_of, settings_of
 from .service import prepare_run
 
 router = APIRouter(prefix="/api")
+
+# Serializes queue admission (depth check + job insert) so concurrent
+# bursts cannot both pass the check and overfill the queue.
+_admission_lock = threading.Lock()
 
 
 class BacktestRequest(BaseModel):
@@ -112,15 +117,20 @@ def create_backtest(body: BacktestRequest, request: Request) -> JSONResponse:
                            dataset_id=body.datasetId, request=req)
         bar_count = prep["bar_count"]
     if bar_count < settings.sync_bar_threshold:
+        with _admission_lock:
+            if job_runner.queued_depth(settings) >= settings.job_queue_limit:
+                return JSONResponse({"code": "RATE_LIMITED", "message": "job queue full",
+                                     "details": {}}, 429)
         run_json, deduped = job_runner.execute_sync(settings, body.strategyVersionId, body.datasetId, req)
         run_json["deduped"] = deduped
         return JSONResponse({"run": run_json}, 200)
-    if job_runner.queued_depth(settings) >= settings.job_queue_limit:
-        return JSONResponse({"code": "RATE_LIMITED", "message": "job queue full", "details": {}}, 429)
-    with session_of(request) as session:
-        job = repos.create_job(session)
-        session.commit()
-        job_id, progress = job.id, dict(job.progress)
+    with _admission_lock:
+        if job_runner.queued_depth(settings) >= settings.job_queue_limit:
+            return JSONResponse({"code": "RATE_LIMITED", "message": "job queue full", "details": {}}, 429)
+        with session_of(request) as session:
+            job = repos.create_job(session)
+            session.commit()
+            job_id, progress = job.id, dict(job.progress)
     asyncio.create_task(job_runner.execute_async(
         settings, job_id, body.strategyVersionId, body.datasetId, req))
     return JSONResponse({"job": {"id": job_id, **progress, "state": "queued"}}, 202)

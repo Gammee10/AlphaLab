@@ -105,6 +105,34 @@ def test_recover_heals_queued_and_running(settings) -> None:
     assert job_runner.queued_depth(config) == 0
 
 
+def test_sync_slots_exhausted_429(settings, monkeypatch: pytest.MonkeyPatch) -> None:
+    import threading
+
+    config, client = settings
+    version_id, dataset_id = _ids(client)
+    monkeypatch.setattr(job_runner, "_sync_slots", threading.Semaphore(0))
+    monkeypatch.setattr(job_runner, "_sync_slots_key", config.job_concurrency)
+    r = client.post("/api/backtests", json={
+        "strategyVersionId": version_id, "datasetId": dataset_id,
+        "config": {"startTime": T0, "endTime": T0 + 2 * M15, "initialCapital": "10000"}})
+    assert r.status_code == 429 and r.json()["code"] == "RATE_LIMITED"
+    assert job_runner.queued_depth(config) == 0  # busy rows are terminal, never queue
+
+
+def test_sync_admission_respects_queue_limit(settings) -> None:
+    config, client = settings
+    version_id, dataset_id = _ids(client)
+    factory = session_factory(config.db_path)
+    with factory() as session:
+        for _ in range(config.job_queue_limit):
+            repos.create_job(session)
+        session.commit()
+    r = client.post("/api/backtests", json={
+        "strategyVersionId": version_id, "datasetId": dataset_id,
+        "config": {"startTime": T0, "endTime": T0 + 2 * M15, "initialCapital": "10000"}})
+    assert r.status_code == 429 and r.json()["code"] == "RATE_LIMITED"
+
+
 def test_async_invalid_spec_fails_job(settings) -> None:
     config, client = settings
     dataset_id = make_dataset(client)

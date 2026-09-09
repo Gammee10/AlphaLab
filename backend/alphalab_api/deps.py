@@ -48,4 +48,9 @@ async def alphalab_error_handler(request: Request, exc: Exception) -> JSONRespon
         return JSONResponse({"code": "NOT_FOUND", "message": str(exc), "details": {}}, 404)
     if isinstance(exc, TooManyTrades):
         return JSONResponse({"code": "TOO_MANY_TRADES", "message": exc.message, "details": {}}, 400)
+    from .jobs import ExecutionBusy
+
+    if isinstance(exc, ExecutionBusy):
+        return JSONResponse({"code": "RATE_LIMITED", "message": "execution slots full; retry shortly",
+                             "details": {}}, 429)
     return JSONResponse({"code": "INTERNAL", "message": "internal error", "details": {}}, 500)

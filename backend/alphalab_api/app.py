@@ -18,6 +18,7 @@ from alphalab_store import models, repos
 from alphalab_store.database import dispose_session_factories, get_session_factory, migrate
 
 from .deps import alphalab_error_handler
+from .jobs import ExecutionBusy
 from .routes_ai import router as ai_router
 from .routes_catalog import router as catalog_router
 from .routes_runs import router as runs_router
@@ -64,7 +65,7 @@ def create_app(db_path: Path | str | None = None) -> FastAPI:
     app.include_router(catalog_router)
     app.include_router(runs_router)
     app.include_router(ai_router)
-    for exc in (AlphaLabError, KeyError, TooManyTrades, MarketDatasetInvalid):
+    for exc in (AlphaLabError, KeyError, TooManyTrades, MarketDatasetInvalid, ExecutionBusy):
         app.add_exception_handler(exc, alphalab_error_handler)
 
     @app.get("/api/health")
