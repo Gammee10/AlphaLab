@@ -12,10 +12,11 @@ import {
 } from "lightweight-charts";
 import type { Bar, Trade } from "./api";
 
-const TEXT = "#8b93a3";
-const GRID = "rgba(35, 44, 61, 0.6)";
-const UP = "#26a69a";
-const DOWN = "#ef5350";
+const TEXT = "#98a1b3";
+const GRID = "rgba(33, 41, 56, 0.6)";
+const UP = "#34d399";
+const DOWN = "#f87171";
+const ACCENT = "#5b8cff";
 
 function useChart(ref: React.RefObject<HTMLDivElement>, height: number): React.MutableRefObject<IChartApi | null> {
   const chartRef = useRef<IChartApi | null>(null);
@@ -108,7 +109,7 @@ export function EquityChart({ curve, height = 220 }: { curve: [number, string][]
     const chart = chartRef.current;
     if (!chart || curve.length === 0) return;
     const data = curve.map(([t, e]) => ({ time: Math.floor(t / 1000) as UTCTimestamp, value: Number(e) }));
-    const area = chart.addSeries(AreaSeries, { lineColor: "#2f81f7", topColor: "rgba(47,129,247,0.35)", bottomColor: "rgba(47,129,247,0.02)" });
+    const area = chart.addSeries(AreaSeries, { lineColor: ACCENT, topColor: "rgba(91,140,255,0.35)", bottomColor: "rgba(91,140,255,0.02)" });
     area.setData(data);
     // Drawdown pane (equity minus running peak) on an overlay scale.
     let peak = -Infinity;
@@ -118,8 +119,8 @@ export function EquityChart({ curve, height = 220 }: { curve: [number, string][]
     });
     const ddSeries = chart.addSeries(AreaSeries, {
       lineColor: DOWN,
-      topColor: "rgba(239,83,80,0.25)",
-      bottomColor: "rgba(239,83,80,0.02)",
+      topColor: "rgba(248,113,113,0.25)",
+      bottomColor: "rgba(248,113,113,0.02)",
       priceScaleId: "dd",
     });
     chart.priceScale("dd").applyOptions({ scaleMargins: { top: 0.7, bottom: 0 } });
@@ -138,7 +139,7 @@ export function EquityChart({ curve, height = 220 }: { curve: [number, string][]
 export function MultiEquity({ curves, height = 260 }: { curves: { label: string; points: { t: number; pct: number }[] }[]; height?: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const chartRef = useChart(ref, height);
-  const colors = ["#26a69a", "#2f81f7", "#ef5350", "#7a5af8", "#e2a63d"];
+  const colors = ["#34d399", "#5b8cff", "#f87171", "#a78bfa", "#fbbf24"];
 
   useEffect(() => {
     const chart = chartRef.current;

@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
 import { EquityChart, PriceChart } from "../charts";
 import { MonthlyHeatmap } from "../components/MonthlyHeatmap";
+import { Badge, DirBadge, ErrorNotice, IconAlert, Loading, MetricCard, PageHead } from "../components/ui";
 import { deltaClass, fmtMoney, fmtRate, shortHash } from "../format";
 
 export function RunView({ id, onCompare }: { id: string; onCompare: (runId: string) => void }) {
@@ -17,103 +18,126 @@ export function RunView({ id, onCompare }: { id: string; onCompare: (runId: stri
     enabled: !!datasetId && !!config,
   });
 
-  if (run.isLoading) return <p>Loading…</p>;
-  if (run.isError) return <p className="error">Failed to load run.</p>;
+  if (run.isLoading) return <Loading text="Loading run…" />;
+  if (run.isError) return <ErrorNotice message="Failed to load run." />;
   const r = run.data!.run;
   const m = r.metrics as unknown as Record<string, string | number | null> & {
     monthly?: { period: string; netPnl: string; trades: number }[];
   };
   const trades = Array.isArray(r.trades) ? r.trades : [];
   const warnings = Object.entries(r.warnings).filter(([, v]) => v !== 0 && v !== false);
+  const net = Number(m.netProfit);
 
   return (
     <div>
-      <h2>
-        Run <code>{shortHash(r.resultHash)}</code> <span className="muted">{r.engineVersion}</span>
-      </h2>
-      <p className="banner">
-        Historical simulation ≠ future performance. MaxDD and Sharpe are in-sample descriptions, not guarantees.
-      </p>
-      <div className="grid cards-4">
-        <Metric label="Net P&L" value={fmtMoney(m.netProfit as string)} n={Number(m.tradeCount)} strong />
-        <Metric label="Return" value={m.totalReturnPct === null ? "—" : `${Number(m.totalReturnPct).toFixed(2)}%`} n={Number(m.tradeCount)} />
-        <Metric label="Win rate" value={m.winRate === null ? "—" : `${(Number(m.winRate) * 100).toFixed(1)}%`} n={Number(m.tradeCount)} />
-        <Metric label="Profit factor" value={fmtRate(m.profitFactor as number | null)} n={Number(m.tradeCount)} />
-        <Metric label="Expectancy" value={fmtMoney(m.expectancy as string)} n={Number(m.tradeCount)} />
-        <Metric label="Max DD" value={`${fmtMoney(m.maxDrawdown as string)} (${Number(m.maxDrawdownPct).toFixed(2)}%)`} n={Number(m.tradeCount)} />
-        <Metric label="Sharpe" value={fmtRate(m.sharpe as number | null)} n={Number(m.tradeCount)} />
-        <Metric label="Trades" value={String(m.tradeCount)} n={Number(m.tradeCount)} />
+      <PageHead
+        title={
+          <>
+            Run <code>{shortHash(r.resultHash)}</code> <Badge kind="neutral">{r.engineVersion}</Badge>
+          </>
+        }
+        sub="Historical simulation with stored assumptions. Same inputs → identical hash, every time."
+      />
+      <div className="banner warn">
+        <IconAlert size={16} />
+        <span>
+          Historical simulation ≠ future performance. MaxDD and Sharpe are in-sample descriptions, not guarantees.
+        </span>
       </div>
 
-      <div className="chart-wrap">
-        <h4>Price + trades {bars.data?.downsampled ? <span className="muted">(downsampled {bars.data.total} → shown)</span> : null}</h4>
-        {bars.isLoading && <p className="muted">Loading candles…</p>}
+      <div className="metric-grid">
+        <MetricCard label="Net P&L" value={fmtMoney(m.netProfit as string)} note={`n=${m.tradeCount}`} large className={deltaClass(net)} />
+        <MetricCard label="Return" value={m.totalReturnPct === null ? "—" : `${Number(m.totalReturnPct).toFixed(2)}%`} />
+        <MetricCard label="Win rate" value={m.winRate === null ? "—" : `${(Number(m.winRate) * 100).toFixed(1)}%`} />
+        <MetricCard label="Profit factor" value={fmtRate(m.profitFactor as number | null)} />
+        <MetricCard label="Expectancy" value={fmtMoney(m.expectancy as string)} />
+        <MetricCard label="Max DD" value={`${fmtMoney(m.maxDrawdown as string)} (${Number(m.maxDrawdownPct).toFixed(2)}%)`} />
+        <MetricCard label="Sharpe" value={fmtRate(m.sharpe as number | null)} />
+        <MetricCard label="Trades" value={String(m.tradeCount)} />
+      </div>
+
+      <div className="chart-card card">
+        <div className="chart-title">
+          <span>Price + trades</span>
+          {bars.data?.downsampled ? <span className="faint">downsampled {bars.data.total} → shown</span> : null}
+        </div>
+        {bars.isLoading && <Loading text="Loading candles…" />}
         {bars.data && <PriceChart bars={bars.data.bars} trades={trades} />}
       </div>
 
-      <div className="chart-wrap">
-        <h4>Equity (blue) + drawdown (red, lower pane scale)</h4>
+      <div className="chart-card card">
+        <div className="chart-title">
+          <span>Equity + drawdown</span>
+          <span className="faint">equity (blue) · drawdown (red, lower pane)</span>
+        </div>
         <EquityChart curve={r.equityCurve} />
       </div>
 
       <MonthlyHeatmap buckets={(m.monthly as { period: string; netPnl: string; trades: number }[] | undefined) ?? []} label="Monthly P&L" />
 
-      <h3>Assumptions &amp; warnings</h3>
-      <ul>
-        {r.assumptions.map((a) => (
-          <li key={a}>{a}</li>
-        ))}
-        {warnings.map(([k, v]) => (
-          <li key={k}>
-            <strong>{k}</strong>: {String(v)}
-          </li>
-        ))}
-      </ul>
-
-      <h3>Trades ({Array.isArray(r.trades) ? trades.length : (r.trades as { total: number }).total})</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Side</th>
-            <th>Qty</th>
-            <th>Entry</th>
-            <th>Exit</th>
-            <th>Net</th>
-            <th>Reason</th>
-          </tr>
-        </thead>
-        <tbody>
-          {trades.map((t, i) => (
-            <tr key={t.id} className={selectedTrade === t.id ? "selected" : ""} onClick={() => setSelectedTrade(t.id)} style={{ cursor: "pointer" }}>
-              <td>{i + 1}</td>
-              <td>{t.direction}</td>
-              <td>{t.qty}</td>
-              <td>{t.entryPrice}</td>
-              <td>{t.exitPrice}</td>
-              <td className={deltaClass(Number(t.netPnl))}>{fmtMoney(t.netPnl)}</td>
-              <td>
-                {t.exitReason}
-                {t.ambiguous ? " (ambiguous)" : ""}
-              </td>
-            </tr>
+      <h3 className="section-title">Assumptions &amp; warnings</h3>
+      <div className="card">
+        <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
+          {r.assumptions.map((a) => (
+            <li key={a} className="muted" style={{ margin: "0.2rem 0" }}>
+              {a}
+            </li>
           ))}
-        </tbody>
-      </table>
-      <button className="link" onClick={() => onCompare(r.id)}>
-        Compare this run →
-      </button>
-    </div>
-  );
-}
+          {warnings.map(([k, v]) => (
+            <li key={k} style={{ margin: "0.2rem 0", display: "flex", gap: "0.4rem", alignItems: "center" }}>
+              <IconAlert size={13} />
+              <span>
+                <strong>{k}</strong>: {String(v)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
 
-function Metric({ label, value, n, strong }: { label: string; value: string; n: number; strong?: boolean }) {
-  return (
-    <div className="card metric">
-      <small className="muted">
-        {label} · n={n}
-      </small>
-      <strong style={strong ? { fontSize: "1.4rem" } : undefined}>{value}</strong>
+      <h3 className="section-title">Trades ({Array.isArray(r.trades) ? trades.length : (r.trades as { total: number }).total})</h3>
+      <div className="card table-card">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Side</th>
+              <th>Qty</th>
+              <th>Entry</th>
+              <th>Exit</th>
+              <th>Net</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            {trades.map((t, i) => (
+              <tr
+                key={t.id}
+                className={selectedTrade === t.id ? "selected" : ""}
+                onClick={() => setSelectedTrade(t.id)}
+                style={{ cursor: "pointer" }}
+              >
+                <td>{i + 1}</td>
+                <td>
+                  <DirBadge direction={t.direction} />
+                </td>
+                <td>{t.qty}</td>
+                <td>{t.entryPrice}</td>
+                <td>{t.exitPrice}</td>
+                <td className={deltaClass(Number(t.netPnl))}>{fmtMoney(t.netPnl)}</td>
+                <td>
+                  {t.exitReason}
+                  {t.ambiguous ? " (ambiguous)" : ""}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ marginTop: "1rem" }}>
+        <button className="btn ghost" onClick={() => onCompare(r.id)}>
+          Compare this run →
+        </button>
+      </div>
     </div>
   );
 }

@@ -183,7 +183,7 @@ export function ConditionBuilder({
           onRemove={() => onChange(removeNode(nodes, n.id))}
         />
       ))}
-      <div className="row">
+      <div className="mini-row">
         <button className="mini-btn" onClick={() => onChange(insertNode(nodes, null, newLeaf()))}>
           + condition
         </button>

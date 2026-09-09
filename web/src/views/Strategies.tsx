@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type ParamField, type Template } from "../api";
+import { Badge, EmptyState, Loading, PageHead } from "../components/ui";
 
 function ParamInput({ name, field, value, onChange }: { name: string; field: ParamField; value: unknown; onChange: (v: unknown) => void }) {
   if (field.enum) {
     return (
-      <label>
+      <label className="field">
         {field.title ?? name}
         <select value={String(value ?? field.default ?? "")} onChange={(e) => onChange(e.target.value)}>
           {field.enum.map((o) => (
@@ -18,7 +19,7 @@ function ParamInput({ name, field, value, onChange }: { name: string; field: Par
     );
   }
   return (
-    <label>
+    <label className="field">
       {field.title ?? name}
       <input
         type="number"
@@ -52,7 +53,10 @@ export function Strategies({ onOpen }: { onOpen: (id: string) => void }) {
 
   return (
     <div>
-      <h2>Strategies</h2>
+      <PageHead title="Strategies" sub="Start from a template, tune the parameters, then iterate on versions." />
+
+      <h3 className="section-title">Templates</h3>
+      {query.isLoading && <Loading text="Loading templates…" />}
       {query.data && (
         <div className="gallery">
           {query.data.templates.map((t) => (
@@ -67,15 +71,18 @@ export function Strategies({ onOpen }: { onOpen: (id: string) => void }) {
                 setError("");
               }}
             >
-              <strong>{t.displayName}</strong>
-              <small className="muted">
-                {t.templateId} v{t.templateVersion}
-              </small>
-              <p>{t.description}</p>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem", alignItems: "baseline" }}>
+                <strong>{t.displayName}</strong>
+                <Badge kind="accent">v{t.templateVersion}</Badge>
+              </div>
+              <p className="muted" style={{ margin: "0.5rem 0 0", fontSize: "0.85rem" }}>
+                {t.description}
+              </p>
             </button>
           ))}
         </div>
       )}
+
       {picked && (
         <form
           onSubmit={(e) => {
@@ -84,32 +91,52 @@ export function Strategies({ onOpen }: { onOpen: (id: string) => void }) {
             create.mutate();
           }}
         >
-          <h3>
-            New from {picked.displayName} <span className="muted">v{picked.templateVersion}</span>
-          </h3>
-          <label>
-            Name
-            <input value={name} onChange={(e) => setName(e.target.value)} />
-          </label>
-          {Object.entries(picked.paramSchema.properties ?? {}).map(([k, f]) => (
-            <ParamInput key={k} name={k} field={f} value={params[k] ?? f.default} onChange={(v) => setParams({ ...params, [k]: v })} />
-          ))}
-          {error && <p className="error">{error}</p>}
-          <button type="submit" disabled={create.isPending}>
-            Create strategy
-          </button>
+          <h3 className="section-title">New from {picked.displayName}</h3>
+          <div className="card" style={{ maxWidth: 520 }}>
+            <label className="field">
+              Name
+              <input value={name} onChange={(e) => setName(e.target.value)} />
+            </label>
+            {Object.entries(picked.paramSchema.properties ?? {}).map(([k, f]) => (
+              <ParamInput key={k} name={k} field={f} value={params[k] ?? f.default} onChange={(v) => setParams({ ...params, [k]: v })} />
+            ))}
+            {error && <p className="error-text">{error}</p>}
+            <button type="submit" className="btn primary" style={{ marginTop: "0.7rem" }} disabled={create.isPending}>
+              Create strategy
+            </button>
+          </div>
         </form>
       )}
-      <h3>All strategies</h3>
-      <ul>
-        {(strategies.data?.strategies ?? []).map((s) => (
-          <li key={s.id}>
-            <button className="link" onClick={() => onOpen(s.id)}>
-              {s.name}
-            </button>
-          </li>
-        ))}
-      </ul>
+
+      <h3 className="section-title">All strategies</h3>
+      <div className="card table-card">
+        {strategies.data && strategies.data.strategies.length === 0 ? (
+          <EmptyState title="No strategies yet">Pick a template above to create your first strategy.</EmptyState>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Current version</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(strategies.data?.strategies ?? []).map((s) => (
+                <tr key={s.id}>
+                  <td>
+                    <button className="link" onClick={() => onOpen(s.id)}>
+                      {s.name}
+                    </button>
+                  </td>
+                  <td>
+                    <code>{s.currentVersionId.slice(0, 8)}</code>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { ConditionBuilder } from "../components/ConditionBuilder";
+import { Badge, ErrorNotice, IconPlay, Loading, PageHead } from "../components/ui";
 import { countLeaves, describeNode, maxDepth, type Node } from "../conditions";
 import { shortHash } from "../format";
 
@@ -20,7 +21,11 @@ interface EditorState {
 
 function fromSpec(spec: Record<string, unknown>): EditorState {
   const entry = spec.entry as { direction: string; logic: "all" | "any"; conditions: Node[] };
-  const exits = spec.exits as { stopLoss: { atrMultiplier?: number }; takeProfit: { ratio?: number; kind: string }; oppositeSignalExit: boolean };
+  const exits = spec.exits as {
+    stopLoss: { atrMultiplier?: number };
+    takeProfit: { ratio?: number; kind: string };
+    oppositeSignalExit: boolean;
+  };
   const risk = spec.risk as { riskPerTradePct: number };
   const filters = (spec.filters ?? {}) as { session?: { kind: string; startHourUtc?: number; endHourUtc?: number } };
   return {
@@ -57,8 +62,8 @@ export function StrategyDetail({ id, onBacktest }: { id: string; onBacktest: (ve
     onError: (e: Error & { code?: string }) => setError(`${e.code ?? "ERROR"}: ${e.message}`),
   });
 
-  if (detail.isLoading) return <p>Loading…</p>;
-  if (detail.isError) return <p className="error">Failed to load strategy.</p>;
+  if (detail.isLoading) return <Loading text="Loading strategy…" />;
+  if (detail.isError) return <ErrorNotice message="Failed to load strategy." />;
   const { strategy, versions } = detail.data!;
   const current = versions[versions.length - 1];
   const spec = current.spec as { indicators: { id: string; kind: string }[] } & Record<string, unknown>;
@@ -88,11 +93,25 @@ export function StrategyDetail({ id, onBacktest }: { id: string; onBacktest: (ve
 
   return (
     <div>
-      <h2>{strategy.name}</h2>
+      <PageHead
+        title={
+          <>
+            {strategy.name} <Badge kind="neutral">{versions.length} versions</Badge>
+          </>
+        }
+        sub="Immutable version history — every edit creates a new version, nothing is rewritten."
+      />
       <div className="tabs">
         {(["rules", "build", "json"] as const).map((t) => (
-          <button key={t} className={tab === t ? "active" : ""} onClick={() => { setTab(t); setError(""); }}>
-            {t === "rules" ? "Rules & versions" : t === "build" ? "Edit visually" : "Edit JSON"}
+          <button
+            key={t}
+            className={tab === t ? "active" : ""}
+            onClick={() => {
+              setTab(t);
+              setError("");
+            }}
+          >
+            {t === "rules" ? "Rules & versions" : t === "build" ? "Visual editor" : "JSON editor"}
           </button>
         ))}
       </div>
@@ -100,25 +119,32 @@ export function StrategyDetail({ id, onBacktest }: { id: string; onBacktest: (ve
       {tab === "rules" && (
         <>
           <div className="card">
-            <h4>
-              v{current.versionNumber} · <code>{shortHash(current.specHash)}</code>
-            </h4>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.7rem", flexWrap: "wrap", marginBottom: "0.7rem" }}>
+              <Badge kind="accent">v{current.versionNumber}</Badge>
+              <code>{shortHash(current.specHash)}</code>
+            </div>
             {(current.spec.entry as { conditions: Node[]; direction: string }).conditions.map((c) => (
-              <p key={c.id}>
-                <code>{describeNode(c)}</code>
-              </p>
+              <div key={c.id} className="rule-line">
+                {describeNode(c)}
+              </div>
             ))}
-            <button className="primary" onClick={() => onBacktest(current.id)}>
-              Backtest this version
-            </button>
+            <div style={{ marginTop: "1rem" }}>
+              <button className="btn primary" onClick={() => onBacktest(current.id)}>
+                <IconPlay size={14} />
+                Backtest this version
+              </button>
+            </div>
           </div>
-          <h3>Version history (immutable)</h3>
+          <h3 className="section-title">Version history (immutable)</h3>
           <ol className="versions">
             {versions.map((v) => (
-              <li key={v.id} className={v.id === current.id ? "current" : ""}>
-                v{v.versionNumber} · <code>{shortHash(v.specHash)}</code>{" "}
-                <button className="link" onClick={() => onBacktest(v.id)}>
-                  backtest
+              <li key={v.id} className={`version-row${v.id === current.id ? " current" : ""}`}>
+                <span className="v-num">v{v.versionNumber}</span>
+                <code>{shortHash(v.specHash)}</code>
+                {v.id === current.id && <Badge kind="ok">current</Badge>}
+                <span className="spacer" />
+                <button className="btn ghost sm" onClick={() => onBacktest(v.id)}>
+                  Backtest
                 </button>
               </li>
             ))}
@@ -127,10 +153,10 @@ export function StrategyDetail({ id, onBacktest }: { id: string; onBacktest: (ve
       )}
 
       {tab === "build" && (
-        <div className="card">
-          <h4>Entry conditions (visual builder → new version, history preserved)</h4>
-          <div className="row">
-            <label>
+        <div className="card" style={{ maxWidth: 780 }}>
+          <h4 className="card-title">Entry conditions (new version, history preserved)</h4>
+          <div className="field-row">
+            <label className="field">
               Direction
               <select value={ed.direction} onChange={(e) => setEditor({ ...ed, direction: e.target.value })}>
                 <option value="long">long</option>
@@ -138,7 +164,7 @@ export function StrategyDetail({ id, onBacktest }: { id: string; onBacktest: (ve
                 <option value="both">both</option>
               </select>
             </label>
-            <label>
+            <label className="field">
               Logic
               <select value={ed.logic} onChange={(e) => setEditor({ ...ed, logic: e.target.value as "all" | "any" })}>
                 <option value="all">ALL (AND)</option>
@@ -146,17 +172,15 @@ export function StrategyDetail({ id, onBacktest }: { id: string; onBacktest: (ve
               </select>
             </label>
           </div>
-          <ConditionBuilder
-            nodes={ed.conditions}
-            indicators={spec.indicators}
-            onChange={(conditions) => setEditor({ ...ed, conditions })}
-          />
-          <div className="row">
-            <label>
+          <ConditionBuilder nodes={ed.conditions} indicators={spec.indicators} onChange={(conditions) => setEditor({ ...ed, conditions })} />
+          <hr className="divider" />
+          <h4 className="card-title">Risk &amp; exits</h4>
+          <div className="field-row">
+            <label className="field">
               Stop (ATR ×)
               <input type="number" step="any" value={ed.stopMult} onChange={(e) => setEditor({ ...ed, stopMult: Number(e.target.value) })} />
             </label>
-            <label>
+            <label className="field">
               Target (R, blank = none)
               <input
                 type="number"
@@ -166,53 +190,49 @@ export function StrategyDetail({ id, onBacktest }: { id: string; onBacktest: (ve
                 onChange={(e) => setEditor({ ...ed, takeProfitRatio: e.target.value === "" ? null : Number(e.target.value) })}
               />
             </label>
-            <label>
+            <label className="field">
               Risk %
               <input type="number" step="any" value={ed.riskPct} onChange={(e) => setEditor({ ...ed, riskPct: Number(e.target.value) })} />
             </label>
           </div>
-          <div className="row">
-            <label>
-              <span>
-                <input type="checkbox" checked={ed.sessionOn} onChange={(e) => setEditor({ ...ed, sessionOn: e.target.checked })} /> Session
-                filter (UTC)
-              </span>
+          <div className="field-row">
+            <label className="check">
+              <input type="checkbox" checked={ed.sessionOn} onChange={(e) => setEditor({ ...ed, sessionOn: e.target.checked })} />
+              Session filter (UTC)
             </label>
             {ed.sessionOn && (
               <>
-                <label>
+                <label className="field">
                   Start hour
                   <input type="number" value={ed.sessionStart} onChange={(e) => setEditor({ ...ed, sessionStart: Number(e.target.value) })} />
                 </label>
-                <label>
+                <label className="field">
                   End hour
                   <input type="number" value={ed.sessionEnd} onChange={(e) => setEditor({ ...ed, sessionEnd: Number(e.target.value) })} />
                 </label>
               </>
             )}
-            <label>
-              <span>
-                <input type="checkbox" checked={ed.oppositeExit} onChange={(e) => setEditor({ ...ed, oppositeExit: e.target.checked })} /> Exit on
-                opposite signal
-              </span>
+            <label className="check">
+              <input type="checkbox" checked={ed.oppositeExit} onChange={(e) => setEditor({ ...ed, oppositeExit: e.target.checked })} />
+              Exit on opposite signal
             </label>
           </div>
-          {!validTree && <p className="error">Tree needs 1–12 conditions, depth ≤ 3 (now {leaves}, depth {depth}).</p>}
-          {error && <p className="error">{error}</p>}
-          <button className="primary" disabled={!validTree || save.isPending} onClick={() => { setError(""); save.mutate(buildSpec()); }}>
+          {!validTree && <p className="error-text">Tree needs 1–12 conditions, depth ≤ 3 (now {leaves}, depth {depth}).</p>}
+          {error && <ErrorNotice message={error} />}
+          <button className="btn primary" disabled={!validTree || save.isPending} onClick={() => { setError(""); save.mutate(buildSpec()); }}>
             Save as new version
           </button>
         </div>
       )}
 
       {tab === "json" && (
-        <div className="card">
-          <h4>Advanced: full spec JSON (server-validated)</h4>
-          <textarea rows={12} cols={80} placeholder="Paste the full edited spec…" value={draft} onChange={(e) => setDraft(e.target.value)} />
-          {error && <p className="error">{error}</p>}
-          <div>
+        <div className="card" style={{ maxWidth: 780 }}>
+          <h4 className="card-title">Advanced: full spec JSON (server-validated)</h4>
+          <textarea rows={12} placeholder="Paste the full edited spec…" value={draft} onChange={(e) => setDraft(e.target.value)} />
+          {error && <ErrorNotice message={error} />}
+          <div style={{ marginTop: "0.7rem" }}>
             <button
-              className="primary"
+              className="btn primary"
               onClick={() => {
                 setError("");
                 try {

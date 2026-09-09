@@ -1,8 +1,11 @@
 export function MonthlyHeatmap({ buckets, label }: { buckets: { period: string; netPnl: string; trades: number }[]; label: string }) {
-  if (buckets.length === 0) return <p className="muted">No {label} data.</p>;
+  if (buckets.length === 0) return null;
   return (
-    <div>
-      <h4>{label}</h4>
+    <div className="chart-card card">
+      <div className="chart-title">
+        <span>{label}</span>
+        <span className="faint">{buckets.length} months</span>
+      </div>
       <div className="heatmap">
         {buckets.map((b) => {
           const v = Number(b.netPnl);
