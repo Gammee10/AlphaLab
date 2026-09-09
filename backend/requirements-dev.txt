@@ -1,0 +1,6 @@
+-r requirements.txt
+pytest>=8.0
+hypothesis>=6.0
+jsonschema>=4.20
+types-jsonschema>=4.0
+mypy>=1.0

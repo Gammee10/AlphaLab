@@ -28,7 +28,7 @@ backend/alphalab_api  (Python FastAPI — auth stub, validation, orchestration, 
 
 ```
 repo/
-  backend/               # Python: alphalab_core | alphalab_api | alphalab_ai | alphalab_store | tests/
+  backend/               # Python: alphalab_core (pure) | alphalab_contracts (schema validation/hashing) | alphalab_api | alphalab_ai | alphalab_store | tests/
   web/                   # TypeScript React+Vite app (Zod schemas generated from shared/schemas)
   shared/schemas/        # strategy.spec.json + openapi.yaml — THE cross-language contract
   docs/adr/

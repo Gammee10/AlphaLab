@@ -1,0 +1,336 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alphalab.local/schemas/strategy.spec.json",
+  "title": "AlphaLab StrategySpec v1",
+  "description": "Canonical contract for StrategySpec 1.0. Source of truth for Pydantic (backend) and Zod (web) validation. Structural rules only; cross-field semantics are enforced in alphalab_contracts with typed error codes.",
+  "type": "object",
+  "required": ["specVersion", "universe", "indicators", "entry", "exits", "risk", "execution"],
+  "additionalProperties": false,
+  "properties": {
+    "specVersion": { "const": "1.0" },
+    "universe": {
+      "type": "object",
+      "required": ["symbol", "timeframe"],
+      "additionalProperties": false,
+      "properties": {
+        "symbol": { "enum": ["EURUSD", "GBPUSD", "XAUUSD", "BTCUSD"] },
+        "timeframe": { "enum": ["M5", "M15", "H1", "H4", "D1"] }
+      }
+    },
+    "indicators": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": { "$ref": "#/$defs/indicator" }
+    },
+    "entry": {
+      "type": "object",
+      "required": ["direction", "logic", "conditions"],
+      "additionalProperties": false,
+      "properties": {
+        "direction": { "enum": ["long", "short", "both"] },
+        "logic": { "enum": ["all", "any"] },
+        "conditions": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/conditionNode" }
+        }
+      }
+    },
+    "exits": {
+      "type": "object",
+      "required": ["stopLoss", "takeProfit", "oppositeSignalExit"],
+      "additionalProperties": false,
+      "properties": {
+        "stopLoss": {
+          "anyOf": [
+            {
+              "type": "object",
+              "required": ["kind", "atrMultiplier"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": { "const": "atr" },
+                "atrMultiplier": { "type": "number", "minimum": 0.25, "maximum": 10 }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["kind", "pips"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": { "const": "pips" },
+                "pips": { "type": "number", "exclusiveMinimum": 0 }
+              }
+            }
+          ]
+        },
+        "takeProfit": {
+          "anyOf": [
+            {
+              "type": "object",
+              "required": ["kind", "ratio"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": { "const": "rr" },
+                "ratio": { "type": "number", "minimum": 0.25, "maximum": 10 }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["kind", "atrMultiplier"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": { "const": "atr" },
+                "atrMultiplier": { "type": "number", "minimum": 0.25, "maximum": 10 }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["kind"],
+              "additionalProperties": false,
+              "properties": { "kind": { "const": "none" } }
+            }
+          ]
+        },
+        "trailing": {
+          "anyOf": [
+            {
+              "type": "object",
+              "required": ["kind"],
+              "additionalProperties": false,
+              "properties": { "kind": { "const": "none" } }
+            },
+            {
+              "type": "object",
+              "required": ["kind", "atrMultiplier"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": { "const": "atr" },
+                "atrMultiplier": { "type": "number", "minimum": 0.25, "maximum": 10 },
+                "activationR": { "type": "number", "minimum": 0.5, "maximum": 10 }
+              }
+            }
+          ]
+        },
+        "timeStop": {
+          "anyOf": [
+            {
+              "type": "object",
+              "required": ["kind"],
+              "additionalProperties": false,
+              "properties": { "kind": { "const": "none" } }
+            },
+            {
+              "type": "object",
+              "required": ["kind", "bars"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": { "const": "bars" },
+                "bars": { "type": "integer", "minimum": 1, "maximum": 500 }
+              }
+            }
+          ]
+        },
+        "oppositeSignalExit": { "type": "boolean" }
+      }
+    },
+    "filters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "session": {
+          "anyOf": [
+            {
+              "type": "object",
+              "required": ["kind"],
+              "additionalProperties": false,
+              "properties": { "kind": { "const": "none" } }
+            },
+            {
+              "type": "object",
+              "required": ["kind", "startHourUtc", "endHourUtc"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": { "const": "window" },
+                "startHourUtc": { "type": "integer", "minimum": 0, "maximum": 24 },
+                "endHourUtc": { "type": "integer", "minimum": 0, "maximum": 24 }
+              }
+            }
+          ]
+        },
+        "volatility": {
+          "anyOf": [
+            {
+              "type": "object",
+              "required": ["kind"],
+              "additionalProperties": false,
+              "properties": { "kind": { "const": "none" } }
+            },
+            {
+              "type": "object",
+              "required": ["kind"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": { "const": "atr-range" },
+                "minAtr": { "type": "number", "minimum": 0 },
+                "maxAtr": { "type": "number", "minimum": 0 }
+              }
+            }
+          ]
+        },
+        "spreadMaxBps": { "type": ["number", "null"], "minimum": 0 }
+      }
+    },
+    "risk": {
+      "type": "object",
+      "required": ["riskPerTradePct", "maxNotionalMult", "leverageMax"],
+      "additionalProperties": false,
+      "properties": {
+        "riskPerTradePct": { "type": "number", "minimum": 0.05, "maximum": 5 },
+        "maxNotionalMult": { "type": "number", "exclusiveMinimum": 0, "maximum": 5 },
+        "leverageMax": { "type": "number", "minimum": 1, "maximum": 30 },
+        "minStopPriceDistance": { "type": ["number", "null"], "minimum": 0 }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "required": ["fillBasis"],
+      "additionalProperties": false,
+      "properties": {
+        "fillBasis": { "const": "next_open" }
+      }
+    },
+    "reservedForFuture": { "type": "object" }
+  },
+  "$defs": {
+    "indicator": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": ["id", "kind", "period"],
+          "additionalProperties": false,
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "kind": { "enum": ["EMA", "SMA"] },
+            "period": { "type": "integer", "minimum": 2, "maximum": 500 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["id", "kind", "period"],
+          "additionalProperties": false,
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "kind": { "enum": ["RSI", "ATR", "ADX"] },
+            "period": { "type": "integer", "minimum": 2, "maximum": 100 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["id", "kind", "fast", "slow", "signal"],
+          "additionalProperties": false,
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "kind": { "const": "MACD" },
+            "fast": { "type": "integer", "minimum": 2 },
+            "slow": { "type": "integer", "minimum": 2 },
+            "signal": { "type": "integer", "minimum": 2 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["id", "kind", "period", "stdDev"],
+          "additionalProperties": false,
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "kind": { "const": "BB" },
+            "period": { "type": "integer", "minimum": 2, "maximum": 500 },
+            "stdDev": { "type": "number", "minimum": 0.5, "maximum": 4 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["id", "kind", "period"],
+          "additionalProperties": false,
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "kind": { "const": "Donchian" },
+            "period": { "type": "integer", "minimum": 2, "maximum": 500 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["id", "kind"],
+          "additionalProperties": false,
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "kind": { "const": "VWAP" }
+          }
+        }
+      ]
+    },
+    "operand": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": ["kind", "ref"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "indicator" },
+            "ref": { "type": "string", "minLength": 1 },
+            "offsetBars": { "type": "integer", "minimum": 0 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "field"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "price" },
+            "field": { "enum": ["open", "high", "low", "close"] },
+            "offsetBars": { "type": "integer", "minimum": 0 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "value"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "const" },
+            "value": { "type": "number" }
+          }
+        }
+      ]
+    },
+    "condition": {
+      "type": "object",
+      "required": ["id", "left", "op", "right"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "left": { "$ref": "#/$defs/operand" },
+        "op": { "enum": [">", ">=", "<", "<=", "==", "!=", "crossesAbove", "crossesBelow"] },
+        "right": { "$ref": "#/$defs/operand" }
+      }
+    },
+    "conditionNode": {
+      "anyOf": [
+        { "$ref": "#/$defs/condition" },
+        {
+          "type": "object",
+          "required": ["id", "group", "children"],
+          "additionalProperties": false,
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "group": { "enum": ["all", "any"] },
+            "children": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/conditionNode" }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
