@@ -1,10 +1,11 @@
 # Backtest engine (normative execution semantics)
 
-Engine version: `engine/1.2`. Any semantic change → bump version; old runs stay valid under their recorded version.
+Engine version: `engine/1.3`. Any semantic change → bump version; old runs stay valid under their recorded version.
 
 Changelog:
 - `engine/1.1`: gap-through-stop exits at the open-adverse price on any bar (previously paid the stop price). Runs recorded under `engine/1.0` that contain gap-through-stop exits are not comparable to `engine/1.1` runs; see `warnings.gapThroughStop` (new in 1.1).
 - `engine/1.2`: end-of-data force-close pays exit-side spread/slippage/commission like any other exit (previously raw close). Runs ending with an open position differ from `engine/1.1` by exactly the exit friction.
+- `engine/1.3`: both-sides-fire tie-break is inventory-independent — long wins whether flat, long-held (stays long, no reversal), or short-held (reverses to long). Previously a long-held position reversed to short on both-fire while flat/short-held resolved long.
 Location: `backend/alphalab_core` (pure Python: stdlib + numpy kernels only, no FastAPI/SQLAlchemy/HTTP/AI imports). Signature: `run_backtest(spec, bars, config) -> BacktestRunPayload`.
 
 ## 1. Timing contract (anti-lookahead)
@@ -34,7 +35,7 @@ Supported: **market entry at next open** + **attached SL/TP** (+ optional traili
 **Direction semantics (engine/1.0).** The condition tree is the *long* signal. Short
 signals evaluate the *mirrored* tree (`>`↔`<`, `>=`↔`<=`, crossesAbove↔crossesBelow;
 `==`/`!=` unchanged). `direction` gates entries only (`long`→long fills,
-`short`→short fills, `both`→either; both firing on one bar fills long).
+`short`→short fills, `both`→either; both firing on one bar fills long regardless of inventory).
 Opposite-signal exits always use the evaluated opposite side, so `oppositeSignalExit`
 works for long-only strategies too (mirror-based exit, no entry). A stop level
 moved by the trailing ratchet keeps its identity: exits off it are labeled

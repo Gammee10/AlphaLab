@@ -10,7 +10,8 @@ the signal, so warming indicators can never generate trades.
 Short-side signals use the mirrored condition tree (current-engine semantics):
 ``>`` <-> ``<``, ``>=`` <-> ``<=``, crossesAbove <-> crossesBelow, ``==``/``!=``
 unchanged. ``direction`` gates entries only; opposite-signal exits use the
-evaluated opposite side. Tie-break when both sides fire on the same bar: long.
+evaluated opposite side. Tie-break when both sides fire on the same bar: long,
+regardless of inventory (flat, long-held, or short-held).
 """
 
 from __future__ import annotations
@@ -480,11 +481,17 @@ def run_backtest(
             if decided(i - 1, opp_side):
                 close_position(i, exit_price_at_open(i, position.direction), "opposite", False)
         if (i - 1) in in_set:
+            fires: list[str] = []
             for side in ("long", "short"):
                 if direction != "both" and direction != side:
                     continue
-                if not decided(i - 1, side):
-                    continue
+                if decided(i - 1, side):
+                    fires.append(side)
+            if fires == ["long", "short"]:
+                # Documented tie-break: long wins regardless of inventory
+                # (flat, long-held, or short-held) -- collapse before handling.
+                fires = ["long"]
+            for side in fires:
                 if position is not None and position.direction == side:
                     orders.append(
                         Order(
@@ -499,8 +506,6 @@ def run_backtest(
                     if position is not None:
                         close_position(i, exit_price_at_open(i, position.direction), "opposite", False)
                     open_position(i, side, i - 1)
-                    if side == "long":
-                        break  # tie-break: long wins when both fire
         if idx_pos == len(in_range) - 1:
             for side in ("long", "short"):
                 if direction != "both" and direction != side:

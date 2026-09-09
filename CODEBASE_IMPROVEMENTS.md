@@ -133,7 +133,9 @@ A backtest that is wrong in the favorable direction is worse than a crash. Fix t
 - **Fix:** Apply the same adverse-side exit cost at force-close: `close_position(last, exit_price_at_close(last, direction), ...)`. Add counter `endOfDataCloses`.
 - **Validation:** Known-answer test: position open at last bar → exit == close ± spread ± slip ± commission to the cent; regression on existing fixtures.
 
-### H2 — Both-fire tie-break is asymmetric when holding (`long wins` only when flat/short-held)
+### H2 — Both-fire tie-break is asymmetric when holding (`long wins` only when flat/short-held) [IMPLEMENTED]
+
+> **Implementation note (2026-09-09):** Fixed in `engine/1.3`. Entry legs are now collected first and `["long", "short"]` collapses to `["long"]` before inventory handling, so long wins whether flat (opens long), long-held (pyramid skip, no reversal), or short-held (reverses to long). Changed: `backend/alphalab_core/engine.py` (entry block + docstring), `config.py` (`ENGINE_VERSION=engine/1.3`), `docs/backtest-engine.md` (version + changelog + direction semantics). Added `test_both_fire_long_wins_regardless_of_inventory` (self-mirroring `!=` condition fires both sides every bar; asserts 1 long trade, no `opposite` exits, 3 pyramid skips). Validated: full backend suite 118 passed (excl. perf).
 
 - **Category:** Backtesting Correctness
 - **Severity:** High

@@ -187,6 +187,29 @@ def test_pyramid_skip_and_order_states() -> None:
     assert payload.warnings["pyramidSkips"] == len(states) - 2
 
 
+def test_both_fire_long_wins_regardless_of_inventory() -> None:
+    # `!=` mirrors to itself, so both sides fire on every bar.
+    spec = base_spec()
+    spec["entry"]["direction"] = "both"
+    spec["entry"]["conditions"] = [
+        {"id": "c1", "left": {"kind": "price", "field": "close"}, "op": "!=", "right": {"kind": "const", "value": 99999}}
+    ]
+    spec["exits"]["takeProfit"] = {"kind": "none"}
+    bars = bars_from_lists(
+        times(5), [100, 101, 102, 103, 104], [100, 101, 102, 103, 104], [100, 101, 102, 103, 104], [100, 101, 102, 103, 104]
+    )
+    payload = run_backtest(spec, bars, cfg(end_ms=T0 + 4 * M15))
+    # Flat + both-fire opens long; long-held + both-fire stays long (no reversal).
+    assert len(payload.trades) == 1
+    assert payload.trades[0].direction == "long"
+    assert payload.trades[0].exit_reason == "end-of-data"
+    assert all(t.exit_reason != "opposite" for t in payload.trades)
+    # `!=` needs no lookback, so signals fire at idx0..3: one fill + three skips.
+    assert payload.warnings["pyramidSkips"] == 3
+    assert [o.state for o in payload.orders[:4]] == [
+        "filled", "ignored_pyramid", "ignored_pyramid", "ignored_pyramid"]
+
+
 def test_reversal_two_legs() -> None:
     spec = base_spec()
     spec["entry"]["direction"] = "both"
