@@ -236,6 +236,12 @@ def run_backtest(
             return o - spread_amt(o) - slip_amt(o)
         return o + spread_amt(o) + slip_amt(o)
 
+    def exit_price_at_close(bar: int, side: str) -> Decimal:
+        c = money(bars.close[bar])
+        if side == "long":
+            return c - spread_amt(c) - slip_amt(c)
+        return c + spread_amt(c) + slip_amt(c)
+
     uses_exit_atr = any(
         isinstance(exits.get(slot), dict) and exits[slot].get("kind") == "atr"
         for slot in ("stopLoss", "takeProfit", "trailing")
@@ -583,7 +589,7 @@ def run_backtest(
 
     if position is not None:
         last = in_range[-1]
-        close_position(last, money(bars.close[last]), "end-of-data", False)
+        close_position(last, exit_price_at_close(last, position.direction), "end-of-data", False)
 
     assumptions = [
         f"{ENGINE_VERSION}: closed-bar signals, next-open fills",

@@ -1,9 +1,10 @@
 # Backtest engine (normative execution semantics)
 
-Engine version: `engine/1.1`. Any semantic change → bump version; old runs stay valid under their recorded version.
+Engine version: `engine/1.2`. Any semantic change → bump version; old runs stay valid under their recorded version.
 
 Changelog:
 - `engine/1.1`: gap-through-stop exits at the open-adverse price on any bar (previously paid the stop price). Runs recorded under `engine/1.0` that contain gap-through-stop exits are not comparable to `engine/1.1` runs; see `warnings.gapThroughStop` (new in 1.1).
+- `engine/1.2`: end-of-data force-close pays exit-side spread/slippage/commission like any other exit (previously raw close). Runs ending with an open position differ from `engine/1.1` by exactly the exit friction.
 Location: `backend/alphalab_core` (pure Python: stdlib + numpy kernels only, no FastAPI/SQLAlchemy/HTTP/AI imports). Signature: `run_backtest(spec, bars, config) -> BacktestRunPayload`.
 
 ## 1. Timing contract (anti-lookahead)
@@ -68,7 +69,7 @@ For an open long with `stop S < entry E < target T`, on each bar with range `[L,
 
 Shorts mirror. All fills subtract spread/slippage/commission; every trade stores `entryBar, exitBar, entryPrice, exitPrice, qty, fees, grossPnl, netPnl, exitReason {stop|target|trailing|time|opposite|end-of-data}, ambiguous?: bool`.
 
-End-of-data: open position force-closed at last close (reason `end-of-data`, flagged so users don't mistake truncation for alpha).
+End-of-data: open position force-closed at last close minus exit-side spread/slippage (plus exit commission), like any other exit (reason `end-of-data`, flagged so users don't mistake truncation for alpha).
 
 ## 4. Position sizing
 

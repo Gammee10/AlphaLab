@@ -125,6 +125,29 @@ def test_commission_and_slippage_stack_exact() -> None:
     assert tr.gross_pnl == (Decimal("99.5") - Decimal("101.505")) * Decimal("100")
 
 
+def test_end_of_data_exit_pays_exit_costs() -> None:
+    # Force-close at the last bar nets spread/slippage/commission like any exit.
+    spec = base_spec()
+    spec["exits"]["takeProfit"] = {"kind": "none"}
+    bars = bars_from_lists(
+        times(4), [100, 101, 102, 103], [100, 101, 102, 103], [100, 100, 101, 102], [100, 101, 102, 103]
+    )
+    config = cfg(
+        end_ms=T0 + 3 * M15,
+        costs=Costs(spread_bps=Decimal("0"), slippage_bps=Decimal("50"), commission_per_unit=Decimal("1")),
+    )
+    payload = run_backtest(spec, bars, config)
+    assert len(payload.trades) == 1
+    tr = payload.trades[0]
+    assert tr.exit_reason == "end-of-data"
+    # fill = 102 * 1.005 = 102.51; exit = 103 * 0.995 = 102.485.
+    assert tr.entry_price == Decimal("102.51")
+    assert tr.exit_price == Decimal("102.485")
+    assert tr.fees == Decimal("200")  # 100 entry + 100 exit
+    assert tr.gross_pnl == (Decimal("102.485") - Decimal("102.51")) * Decimal("100")
+    assert tr.net_pnl == tr.gross_pnl - Decimal("200")
+
+
 def test_capital_skip() -> None:
     spec = base_spec()
     spec["risk"]["maxNotionalMult"] = 1  # 101*100=10100 > 10000

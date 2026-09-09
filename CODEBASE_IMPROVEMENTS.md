@@ -121,7 +121,9 @@ A backtest that is wrong in the favorable direction is worse than a crash. Fix t
 
 ## 2. High findings
 
-### H1 — End-of-data force-close skips spread/slippage (last trade flattered)
+### H1 — End-of-data force-close skips spread/slippage (last trade flattered) [IMPLEMENTED]
+
+> **Implementation note (2026-09-09):** Fixed in `engine/1.2`. Force-close now uses a direction-aware `exit_price_at_close()` (close ± spread/2 ± slippage; commission was already charged in `close_position`). Changed: `backend/alphalab_core/engine.py`, `config.py` (`ENGINE_VERSION=engine/1.2`), `docs/backtest-engine.md` (version + changelog + end-of-data rule). Added `test_end_of_data_exit_pays_exit_costs` (exact-cent: fill 102.51, exit 102.485, fees 200, gross −2.5). Validated: engine+api+runs+jobs suites 37 passed.
 
 - **Category:** Backtesting Correctness
 - **Severity:** High
