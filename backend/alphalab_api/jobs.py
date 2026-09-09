@@ -175,17 +175,34 @@ async def execute_async(
                     session3.commit()
 
 
+def _fail_sync_job(settings: Settings, job_id: str, exc: Exception) -> None:
+    factory = session_factory(settings.db_path)
+    with factory() as session:
+        code = getattr(exc, "code", "INTERNAL")
+        repos.finish_job(session, job_id, "failed", f"{code}: {exc}")
+        session.commit()
+
+
 def execute_sync(
     settings: Settings, strategy_version_id: str, dataset_id: str, request: dict[str, Any]
 ) -> tuple[dict[str, Any], bool]:
-    """Inline path (<200k bars). Returns (run_json, deduped). Raises on failure."""
+    """Inline path (<200k bars). Returns (run_json, deduped). Raises on failure.
+
+    The job row is always terminal on return-or-raise, so failures can never
+    orphan a ``queued`` row and inflate queue depth.
+    """
     factory = session_factory(settings.db_path)
     with factory() as session:
         prep = prepare_run(session, strategy_version_id=strategy_version_id, dataset_id=dataset_id, request=request)
         job = repos.create_job(session)
+        repos.set_job_running(session, job.id, prep["bar_count"])
         session.commit()
         job_id = job.id
-    payload = run_backtest(prep["spec"], window_arrays(prep), to_engine_config(prep))
+    try:
+        payload = run_backtest(prep["spec"], window_arrays(prep), to_engine_config(prep))
+    except Exception as exc:
+        _fail_sync_job(settings, job_id, exc)
+        raise
     with factory() as session:
         try:
             run, deduped = finish_prepared_run(
@@ -203,6 +220,10 @@ def execute_sync(
                 repos.finish_job(session2, job_id, "completed")
                 session2.commit()
                 return run_to_json(session2, existing.id), True
+        except Exception as exc:
+            session.rollback()
+            _fail_sync_job(settings, job_id, exc)
+            raise
         repos.finish_job(session, job_id, "completed")
         session.commit()
         return run_to_json(session, run.id), deduped

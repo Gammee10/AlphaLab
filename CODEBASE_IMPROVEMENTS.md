@@ -63,7 +63,9 @@ A backtest that is wrong in the favorable direction is worse than a crash. Fix t
 - **Implementation guidance:** Share one `asyncio.Semaphore(job_concurrency)` across both paths (fix global-singleton issue in H6 at the same time); wrap `run_backtest` call in `asyncio.wait_for`; on timeout set job error `TIMEOUT`. Files: `routes_runs.py`, `jobs.py`, `settings.py`.
 - **Validation:** Concurrency test: fire N sync requests against `job_concurrency=1`, assert at most 1 runs and the rest 429/queued; sweep-of-32 test asserts bounded latency or async upgrade; load test with 200k-bar dataset.
 
-### C3 — Sync failure orphans a `queued` job row that permanently inflates queue depth
+### C3 — Sync failure orphans a `queued` job row that permanently inflates queue depth [IMPLEMENTED]
+
+> **Implementation note (2026-09-09):** Fixed. `execute_sync` now marks the job `running` (with `started_at`) at creation and funnels every failure — engine raise or persist failure — through a `_fail_sync_job()` helper that records `failed` + commits before re-raising, so the caller still gets the error for its HTTP response while the queue stays clean. `recover_interrupted()` now heals `queued` as well as `running` rows (sound: tasks are in-process fire-and-forget, so any non-terminal job at boot is orphaned by construction). Changed: `backend/alphalab_api/jobs.py`, `backend/alphalab_store/repos.py`. Added `test_sync_engine_failure_finalizes_job` (injected engine boom → raises, job failed, depth 0) and `test_recover_heals_queued_and_running`. Existing `test_job_lifecycle_cancel_recover` unaffected (no queued rows at its recovery point). Validated: full backend suite 124 passed (excl. perf); mypy clean. Note: `job.error` text format unchanged — redaction is H7, still pending.
 
 - **Category:** Reliability / Database
 - **Severity:** Critical

@@ -184,8 +184,15 @@ def request_cancel(session: Session, job_id: str) -> models.BacktestJob | None:
 
 
 def recover_interrupted(session: Session) -> int:
-    """Mark jobs stuck in running (process died) as failed. Returns count."""
-    stuck = session.scalars(select(models.BacktestJob).where(models.BacktestJob.state == "running")).all()
+    """Mark jobs stuck in running/queued (process died) as failed. Returns count.
+
+    Queued rows are covered too: tasks are in-process fire-and-forget, so no
+    worker can survive a restart to pick them up -- any non-terminal job at
+    boot is orphaned by construction.
+    """
+    stuck = session.scalars(
+        select(models.BacktestJob).where(models.BacktestJob.state.in_(("running", "queued")))
+    ).all()
     for job in stuck:
         job.state = "failed"
         job.error = "restarted: process did not survive the run"

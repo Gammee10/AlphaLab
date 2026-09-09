@@ -6,6 +6,7 @@ import asyncio
 from pathlib import Path
 
 import pytest
+from sqlalchemy import select
 
 from alphalab_api import jobs as job_runner
 from alphalab_api.settings import load_settings
@@ -67,6 +68,39 @@ def test_async_cancel_before_start(settings) -> None:
         job = session.get(models.BacktestJob, job_id)
         assert job.state == "cancelled"
         assert session.query(models.BacktestRun).count() == 0
+
+
+def test_sync_engine_failure_finalizes_job(settings, monkeypatch: pytest.MonkeyPatch) -> None:
+    config, client = settings
+    version_id, dataset_id = _ids(client)
+    factory = session_factory(config.db_path)
+
+    def boom(*args: object, **kwargs: object) -> object:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(job_runner, "run_backtest", boom)
+    with pytest.raises(RuntimeError, match="boom"):
+        job_runner.execute_sync(config, version_id, dataset_id, _request())
+    with factory() as session:
+        jobs = session.scalars(select(models.BacktestJob)).all()
+        assert jobs and all(j.state == "failed" for j in jobs)
+    assert job_runner.queued_depth(config) == 0
+
+
+def test_recover_heals_queued_and_running(settings) -> None:
+    config, _ = settings
+    factory = session_factory(config.db_path)
+    with factory() as session:
+        queued = repos.create_job(session)
+        running = repos.create_job(session)
+        repos.set_job_running(session, running.id, 10)
+        session.commit()
+        assert repos.recover_interrupted(session) == 2
+        session.commit()
+    with factory() as session:
+        assert session.get(models.BacktestJob, queued.id).state == "failed"
+        assert session.get(models.BacktestJob, running.id).state == "failed"
+    assert job_runner.queued_depth(config) == 0
 
 
 def test_async_invalid_spec_fails_job(settings) -> None:
