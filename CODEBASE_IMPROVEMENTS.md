@@ -194,7 +194,9 @@ A backtest that is wrong in the favorable direction is worse than a crash. Fix t
 - **Fix (with C6):** Move executor+semaphore into app lifespan state keyed off current settings; hold the semaphore only around the CPU-bound engine call, not DB prepare/persist.
 - **Validation:** Test changing `job_concurrency` takes effect without restart; concurrency test showing DB I/O overlaps.
 
-### H7 — Internal exception text persisted to `job.error` and streamed to clients
+### H7 — Internal exception text persisted to `job.error` and streamed to clients [IMPLEMENTED]
+
+> **Implementation note (2026-09-09):** Fixed with a `_public_error()` helper in `jobs.py`: typed domain errors (`AlphaLabError`, `TooManyTrades`) keep code+message, `KeyError` maps to `NOT_FOUND` (matching the HTTP layer), and unknown exceptions log server-side via `logging` while persisting only `"INTERNAL: internal error"`. Applied at all four `finish_job(failed)` sites (async prepare/engine/persist + sync helper). Changed: `backend/alphalab_api/jobs.py`. Extended `test_sync_engine_failure_finalizes_job` (asserts generic code, no leak) and `test_async_invalid_spec_fails_job` (asserts `NOT_FOUND` prefix). Validated: job suite 5 passed; mypy clean. Residual: the still-promised log-redaction filter for secrets is H8, pending.
 
 - **Category:** Security / API
 - **Severity:** High

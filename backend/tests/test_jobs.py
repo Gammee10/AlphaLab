@@ -84,6 +84,8 @@ def test_sync_engine_failure_finalizes_job(settings, monkeypatch: pytest.MonkeyP
     with factory() as session:
         jobs = session.scalars(select(models.BacktestJob)).all()
         assert jobs and all(j.state == "failed" for j in jobs)
+        # Unknown failure: generic code persisted, internals never stored.
+        assert all(j.error == "INTERNAL: internal error" for j in jobs)
     assert job_runner.queued_depth(config) == 0
 
 
@@ -115,3 +117,4 @@ def test_async_invalid_spec_fails_job(settings) -> None:
     with factory() as session:
         job = session.get(models.BacktestJob, job_id)
         assert job.state == "failed" and job.error
+        assert job.error.startswith("NOT_FOUND")

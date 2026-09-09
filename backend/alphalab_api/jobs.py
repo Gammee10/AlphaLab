@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from concurrent.futures import ProcessPoolExecutor
 from decimal import Decimal
 from typing import Any
@@ -26,8 +27,36 @@ from alphalab_store import models, repos
 from alphalab_store.database import get_session_factory
 
 from . import worker
-from .service import assemble_payload, finish_prepared_run, prepare_run, to_engine_config, window_arrays
+from .service import (
+    TooManyTrades,
+    assemble_payload,
+    finish_prepared_run,
+    prepare_run,
+    to_engine_config,
+    window_arrays,
+)
 from .settings import Settings
+
+log = logging.getLogger("alphalab.jobs")
+
+
+def _public_error(exc: Exception) -> str:
+    """Client-safe job error string.
+
+    Typed domain errors keep their code + message; unknown failures are
+    logged server-side (full traceback) and persist only a generic code,
+    per docs/api.md ("500 internal, no stack to client").
+    """
+    from alphalab_contracts import AlphaLabError
+
+    if isinstance(exc, AlphaLabError):
+        return f"{exc.code}: {exc.message}"
+    if isinstance(exc, TooManyTrades):
+        return f"{exc.code}: {exc.message}"
+    if isinstance(exc, KeyError):
+        return f"NOT_FOUND: {exc}"
+    log.exception("backtest job failed")
+    return "INTERNAL: internal error"
 
 _executor: ProcessPoolExecutor | None = None
 _semaphore: asyncio.Semaphore | None = None
@@ -111,7 +140,7 @@ async def execute_async(
                     session, strategy_version_id=strategy_version_id, dataset_id=dataset_id, request=request
                 )
             except Exception as exc:  # validation etc: terminal failure, never retried silently
-                repos.finish_job(session, job_id, "failed", f"{getattr(exc, 'code', 'INTERNAL')}: {exc}")
+                repos.finish_job(session, job_id, "failed", _public_error(exc))
                 session.commit()
                 return
             repos.set_job_running(session, job_id, prep["bar_count"])
@@ -134,7 +163,7 @@ async def execute_async(
             return
         except Exception as exc:
             with factory() as session:
-                repos.finish_job(session, job_id, "failed", f"INTERNAL: {exc}")
+                repos.finish_job(session, job_id, "failed", _public_error(exc))
                 session.commit()
             return
         with factory() as session:
@@ -170,16 +199,14 @@ async def execute_async(
             except Exception as exc:
                 session.rollback()
                 with factory() as session3:
-                    code = getattr(exc, "code", "INTERNAL")
-                    repos.finish_job(session3, job_id, "failed", f"{code}: {exc}")
+                    repos.finish_job(session3, job_id, "failed", _public_error(exc))
                     session3.commit()
 
 
 def _fail_sync_job(settings: Settings, job_id: str, exc: Exception) -> None:
     factory = get_session_factory(settings.db_path)
     with factory() as session:
-        code = getattr(exc, "code", "INTERNAL")
-        repos.finish_job(session, job_id, "failed", f"{code}: {exc}")
+        repos.finish_job(session, job_id, "failed", _public_error(exc))
         session.commit()
 
 
