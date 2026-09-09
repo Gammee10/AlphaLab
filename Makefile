@@ -13,7 +13,7 @@ test-core:
 	$(PY) -m pytest $(BACKEND)/tests -q -k "not slow"
 
 typecheck:
-	cd $(BACKEND) && ../$(PY) -m mypy alphalab_contracts alphalab_core alphalab_marketdata
+	cd $(BACKEND) && ../$(PY) -m mypy alphalab_contracts alphalab_core alphalab_marketdata alphalab_store
 
 purity:
 	$(PY) -m pytest $(BACKEND)/tests/test_purity.py -q
@@ -28,4 +28,4 @@ codegen:
 	$(PY) backend/scripts/codegen.py
 
 migrate:
-	$(PY) -m alembic upgrade head
+	cd $(BACKEND) && ../$(PY) -m alphalab_store.database
