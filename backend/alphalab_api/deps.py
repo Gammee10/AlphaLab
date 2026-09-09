@@ -26,7 +26,16 @@ def session_of(request: Request) -> Session:
 
 
 async def alphalab_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    from decimal import InvalidOperation
+
     del request
+    # Backstop: a malformed decimal literal that slips past validation is a
+    # client error, not a 500. (ValueError is deliberately NOT mapped here:
+    # engine bugs raise ValueError and must stay loud 500s.)
+    if isinstance(exc, InvalidOperation):
+        return JSONResponse(
+            {"code": "VALIDATION_ERROR", "message": "invalid numeric value in request",
+             "details": {}}, 400)
     if isinstance(exc, StrategyInvalidError):
         return JSONResponse({"code": "STRATEGY_INVALID", "message": exc.message, "details": exc.details}, 400)
     if isinstance(exc, NotSupportedError):

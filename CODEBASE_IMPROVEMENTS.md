@@ -84,7 +84,9 @@ A backtest that is wrong in the favorable direction is worse than a crash. Fix t
 - **Implementation guidance:** Files `routes_runs.py`, `service.py`. Decide contract first (update `docs/api.md`), then implement; add test for mid-sweep failure.
 - **Validation:** Sweep test with 3 combos where combo 2 is invalid → 200/207 with 2 runs + 1 typed failure, experiment contains only successes, no stray strategies.
 
-### C5 — Unvalidated money/cost/time inputs reach `Decimal()`/`int()` and crash as 500; negatives accepted
+### C5 — Unvalidated money/cost/time inputs reach `Decimal()`/`int()` and crash as 500; negatives accepted [IMPLEMENTED]
+
+> **Implementation note (2026-09-09):** Fixed with a shared validator instead of the suggested Pydantic models (keeps the 400+code error contract; strict Pydantic fields would have produced 422s). New `_request_dict_from_config()` in `routes_runs.py` validates times (int/int-string, bool/float rejected, range-checked), `initialCapital` (finite, 0 < x ≤ 1e12), and present cost keys (finite, 0 ≤ x ≤ caps); all failures raise `ValidationError` → 400. Both `POST /backtests` and `POST /experiments/sweep` route through it — sweep validation runs before any version is committed, so bad configs no longer orphan versions, and missing sweep `startTime` is 400 instead of 404-`KeyError`. `deps.py` additionally maps `decimal.InvalidOperation` → 400 as a backstop; `ValueError` is deliberately NOT blanket-mapped (engine bugs raise it and must stay loud 500s) — a documented deviation from the audit's recommendation. Changed: `backend/alphalab_api/routes_runs.py`, `deps.py`. Added `test_backtest_rejects_bad_config` (13 bad-input cases incl. NaN/Infinity/garbage/negative/bool/float, plus sweep-missing-times). Validated: full backend suite 122 passed (excl. perf); mypy clean.
 
 - **Category:** API / Validation / Trading Logic
 - **Severity:** Critical

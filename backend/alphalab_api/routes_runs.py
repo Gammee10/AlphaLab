@@ -28,20 +28,79 @@ class BacktestRequest(BaseModel):
     config: dict[str, Any]
 
 
-def _request_dict(body: BacktestRequest) -> dict[str, Any]:
+_MAX_CAPITAL = "1000000000000"  # 1e12 sanity cap
+_MAX_BPS = "100000"  # 1000% sanity cap on spread/slippage
+_MAX_COMMISSION = "1000000000"
+
+
+def _as_ms(value: Any, path: str) -> int:
     from alphalab_contracts import ValidationError
 
+    if isinstance(value, bool):
+        raise ValidationError(f"config.{path} must be an integer UTC-ms timestamp")
+    if isinstance(value, int):
+        ms = value
+    elif isinstance(value, str) and value.strip().lstrip("+-").isdigit():
+        ms = int(value.strip())
+    else:
+        raise ValidationError(f"config.{path} must be an integer UTC-ms timestamp")
+    if not 0 < ms < 2**63:
+        raise ValidationError(f"config.{path} is out of range")
+    return ms
+
+
+def _as_decimal(value: Any, path: str, minimum: str, maximum: str, *, allow_zero: bool) -> Any:
+    from decimal import Decimal, InvalidOperation
+
+    from alphalab_contracts import ValidationError
+
+    if isinstance(value, bool):
+        raise ValidationError(f"config.{path} must be numeric")
+    try:
+        d = value if isinstance(value, Decimal) else Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError, AttributeError):
+        raise ValidationError(f"config.{path} must be numeric") from None
+    if d.is_nan() or not d.is_finite():
+        raise ValidationError(f"config.{path} must be finite")
+    lo, hi = Decimal(minimum), Decimal(maximum)
+    if d < lo or d > hi or (d == 0 and not allow_zero):
+        raise ValidationError(f"config.{path} must be in [{minimum}, {maximum}]"
+                              + ("" if allow_zero else ", non-zero"))
+    return d
+
+
+def _request_dict_from_config(config: Any) -> dict[str, Any]:
+    """Validate raw run-config input; raises ValidationError (400), never 500."""
+    from alphalab_contracts import ValidationError
+
+    if not isinstance(config, dict):
+        raise ValidationError("config must be an object")
     for key in ("startTime", "endTime"):
-        if body.config.get(key) is None:
+        if config.get(key) is None:
             raise ValidationError(f"config.{key} is required")
+    costs = config.get("costs")
+    if costs is None:
+        costs = {}
+    if not isinstance(costs, dict):
+        raise ValidationError("config.costs must be an object")
+    for key, maximum in (("spreadBps", _MAX_BPS), ("slippageBps", _MAX_BPS),
+                         ("commissionPerUnit", _MAX_COMMISSION)):
+        if costs.get(key) is not None:
+            _as_decimal(costs[key], f"costs.{key}", "0", maximum, allow_zero=True)
     return {
-        "startTime": body.config.get("startTime"),
-        "endTime": body.config.get("endTime"),
-        "initialCapital": body.config.get("initialCapital", "10000"),
-        "costs": body.config.get("costs"),
-        "inSample": body.config.get("inSample"),
-        "outOfSample": body.config.get("outOfSample"),
+        "startTime": _as_ms(config.get("startTime"), "startTime"),
+        "endTime": _as_ms(config.get("endTime"), "endTime"),
+        "initialCapital": str(_as_decimal(
+            config.get("initialCapital", "10000"), "initialCapital", "0", _MAX_CAPITAL,
+            allow_zero=False)),
+        "costs": costs,
+        "inSample": config.get("inSample"),
+        "outOfSample": config.get("outOfSample"),
     }
+
+
+def _request_dict(body: BacktestRequest) -> dict[str, Any]:
+    return _request_dict_from_config(body.config)
 
 
 @router.post("/backtests")
@@ -292,6 +351,7 @@ def create_sweep(body: SweepRequest, request: Request) -> JSONResponse:
         raise ValidationError(f"sweep exceeds {settings.sweep_max_combos} runs")
     if not body.datasetIds:
         raise ValidationError("sweep needs at least one datasetId")
+    sweep_req = _request_dict_from_config(body.baseConfig)
     run_ids: list[str] = []
     with session_of(request) as session:
         # Resolve the base spec: explicit, or the strategy's current version.
@@ -329,8 +389,7 @@ def create_sweep(body: SweepRequest, request: Request) -> JSONResponse:
                 planned.append((_ephemeral_version(session, spec), dataset_id))
         session.commit()  # versions must be visible to the per-run sessions below
     for version_id, dataset_id in planned:
-        req = dict(body.baseConfig)
-        run_json, _ = job_runner.execute_sync(settings, version_id, dataset_id, req)
+        run_json, _ = job_runner.execute_sync(settings, version_id, dataset_id, sweep_req)
         run_ids.append(run_json["id"])
     with session_of(request) as session:
         exp = repos.create_experiment(

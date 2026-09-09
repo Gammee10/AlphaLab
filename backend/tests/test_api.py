@@ -72,6 +72,38 @@ def backtest(client: TestClient, version_id: str, dataset_id: str) -> dict:
     return r.json()["run"]
 
 
+def test_backtest_rejects_bad_config(client: TestClient) -> None:
+    version_id = make_strategy(client)
+    dataset_id = make_dataset(client)
+
+    def post(config: dict) -> int:
+        return client.post("/api/backtests", json={
+            "strategyVersionId": version_id, "datasetId": dataset_id, "config": config}).status_code
+
+    good = {"startTime": T0, "endTime": T0 + 2 * M15, "initialCapital": "10000",
+            "costs": {"spreadBps": 0, "slippageBps": 0, "commissionPerUnit": 0}}
+    assert post(good) == 200
+    # Each of these previously 500'd (or silently mispriced); all must be 400.
+    assert post({**good, "costs": {"spreadBps": -5}}) == 400
+    assert post({**good, "costs": {"slippageBps": "huge"}}) == 400
+    assert post({**good, "initialCapital": "abc"}) == 400
+    assert post({**good, "initialCapital": "NaN"}) == 400
+    assert post({**good, "initialCapital": "Infinity"}) == 400
+    assert post({**good, "initialCapital": "0"}) == 400
+    assert post({**good, "initialCapital": "-100"}) == 400
+    assert post({**good, "startTime": True}) == 400
+    assert post({**good, "startTime": 1.5}) == 400
+    no_end = dict(good)
+    del no_end["endTime"]
+    assert post(no_end) == 400
+    # Wrong-typed body is rejected by FastAPI's model layer (422, still a 4xx).
+    assert post("not-a-dict") == 422  # type: ignore[arg-type]
+    # Sweep with missing times is 400, not 404.
+    sweep = client.post("/api/experiments/sweep", json={
+        "baseSpec": SPEC, "sweepParams": {}, "datasetIds": [dataset_id], "baseConfig": {}})
+    assert sweep.status_code == 400
+
+
 def test_health_and_templates(client: TestClient) -> None:
     assert client.get("/api/health").json()["ok"] is True
     templates = client.get("/api/templates").json()["templates"]
