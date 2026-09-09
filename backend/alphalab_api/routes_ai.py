@@ -40,6 +40,7 @@ def _live_request_fn(url: str, body: dict[str, Any]) -> dict[str, Any]:
             return {"status": 429}
         out = response.json() if response.content else {}
         out["status"] = response.status_code
+        out["body"] = response.text[:400]
         return out
 
 

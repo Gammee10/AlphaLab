@@ -31,7 +31,7 @@
  },
  "risk": {
   "riskPerTradePct": 0.5,
-  "maxNotionalMult": 3,
+  "maxNotionalMult": 10,
   "leverageMax": 10
  },
  "execution": {
@@ -63,7 +63,8 @@
     "right": {
      "kind": "indicator",
      "ref": "don",
-     "output": "upper"
+     "output": "upper",
+     "offsetBars": 1
     }
    },
    {
@@ -76,7 +77,8 @@
     "right": {
      "kind": "indicator",
      "ref": "don",
-     "output": "lower"
+     "output": "lower",
+     "offsetBars": 1
     }
    }
   ]

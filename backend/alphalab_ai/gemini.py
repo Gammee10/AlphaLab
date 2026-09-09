@@ -12,9 +12,12 @@ import json
 from typing import Any, Callable
 
 PROVIDER = "gemini"
-MODEL_PROPOSE = "gemini-2.5-flash"
-MODEL_SUMMARIZE = "gemini-2.5-flash"
-MODEL_SUMMARIZE_PRO = "gemini-2.5-pro"
+# Current free-tier GA models (2026-09). gemini-2.5-flash was deprecated for
+# new keys (404 "no longer available to new users"); ADR 0010's decision is
+# unchanged: Flash default, Pro opt-in for summaries.
+MODEL_PROPOSE = "gemini-3.8-flash"
+MODEL_SUMMARIZE = "gemini-3.8-flash"
+MODEL_SUMMARIZE_PRO = "gemini-pro-latest"
 API_BASE = "https://generativelanguage.googleapis.com/v1beta"
 BUDGETS = {"propose_in": 4000, "propose_out": 2000, "explain_in": 2000, "explain_out": 2000,
            "summarize_in": 8000, "summarize_out": 2000}
@@ -60,7 +63,8 @@ def _generate(request_fn: Callable[..., Any], model: str, key: str, prompt: str,
     if response.get("status") == 429:
         raise QuotaExhausted("Gemini free-tier quota exhausted")
     if response.get("status") not in (None, 200):
-        raise ModelError(f"Gemini error: {response.get('status')}")
+        body_text = response.get("body", "")
+        raise ModelError(f"Gemini error {response.get('status')}: {body_text[:200]}")
     try:
         text = response["candidates"][0]["content"]["parts"][0]["text"]
         parsed = json.loads(text)

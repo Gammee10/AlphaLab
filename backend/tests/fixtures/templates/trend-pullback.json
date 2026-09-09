@@ -33,7 +33,7 @@
  },
  "risk": {
   "riskPerTradePct": 0.5,
-  "maxNotionalMult": 3,
+  "maxNotionalMult": 10,
   "leverageMax": 10
  },
  "execution": {

@@ -74,6 +74,6 @@ def test_summarize_pro_model_and_explain() -> None:
         return ok_response({"text": "t", "citations": ["metrics.netProfit"]})
 
     out = gemini.summarize(runs, "key", transport, pro=True)
-    assert out["model"] == gemini.MODEL_SUMMARIZE_PRO and "gemini-2.5-pro" in seen["url"]
+    assert out["model"] == gemini.MODEL_SUMMARIZE_PRO and "gemini-pro-latest" in seen["url"]
     explained = gemini.explain({"specVersion": "1.0"}, "key", transport)
     assert explained["text"] == "t"

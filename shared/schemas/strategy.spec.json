@@ -187,7 +187,8 @@
       "additionalProperties": false,
       "properties": {
         "riskPerTradePct": { "type": "number", "minimum": 0.05, "maximum": 5 },
-        "maxNotionalMult": { "type": "number", "exclusiveMinimum": 0, "maximum": 5 },
+        "maxNotionalMult": { "type": "number", "exclusiveMinimum": 0, "maximum": 30,
+                             "description": "Ceiling matches leverageMax (30). Default 10 == leverageMax 10; lower caps silently block standard 0.5%-risk FX sizing on $10k (measured)." },
         "leverageMax": { "type": "number", "minimum": 1, "maximum": 30 },
         "minStopPriceDistance": { "type": ["number", "null"], "minimum": 0 }
       }

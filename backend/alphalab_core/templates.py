@@ -49,12 +49,18 @@ def _session_filter(params: dict[str, Any], default: tuple[int, int] | None) -> 
 
 
 def _base(symbol: str, timeframe: str, risk_pct: float) -> dict[str, Any]:
+    # maxNotionalMult 10 == leverageMax 10: the two guards agree, and 10:1 is
+    # conservative retail FX. Measured on EURUSD M15 (ATR(14) ~0.0008): standard
+    # 0.5% risk with a 1xATR stop needs ~$69k notional on $10k -- a 3x or 5x cap
+    # silently blocks normal risk sizing (every entry skipped). Caps bound
+    # affordability only; fills/costs/realism are untouched, and the absence of
+    # margin-call simulation stays disclosed per run.
     return {
         "specVersion": "1.0",
         "universe": {"symbol": symbol, "timeframe": timeframe},
         "exits": {},
         "filters": {},
-        "risk": {"riskPerTradePct": risk_pct, "maxNotionalMult": 3, "leverageMax": 10},
+        "risk": {"riskPerTradePct": risk_pct, "maxNotionalMult": 10, "leverageMax": 10},
         "execution": {"fillBasis": "next_open"},
     }
 
@@ -120,10 +126,13 @@ def breakout_donchian(params: dict[str, Any]) -> dict[str, Any]:
         "direction": "both",
         "logic": "any",
         "conditions": [
+            # offsetBars 1: break the channel as of the PRIOR bar. The kernel
+            # includes the current bar (textbook), so without the offset a
+            # close could never exceed its own bar's high -- zero signals.
             {"id": "breakUp", "left": {"kind": "price", "field": "close"}, "op": "crossesAbove",
-             "right": {"kind": "indicator", "ref": "don", "output": "upper"}},
+             "right": {"kind": "indicator", "ref": "don", "output": "upper", "offsetBars": 1}},
             {"id": "breakDown", "left": {"kind": "price", "field": "close"}, "op": "crossesBelow",
-             "right": {"kind": "indicator", "ref": "don", "output": "lower"}},
+             "right": {"kind": "indicator", "ref": "don", "output": "lower", "offsetBars": 1}},
         ],
     }
     spec["exits"] = {

@@ -74,8 +74,8 @@ The footer (provider, model, token count, grounded run/version hashes) is mandat
 
 ```text
 ai.provider: auto | gemini | ruled   (default auto)
-ai.gemini.model_propose: gemini-2.5-flash
-ai.gemini.model_summarize: gemini-2.5-flash (+ optional pro toggle per call)
+ai.gemini.model_propose: gemini-3.8-flash    # current GA Flash (2026-09); gemini-2.5-flash deprecated for new keys
+ai.gemini.model_summarize: gemini-3.8-flash (+ optional pro toggle per call → gemini-pro-latest)
 ai.budgets.daily_input_tokens: 200_000 (user-adjustable; hard stop with clear message)
 ```
 
