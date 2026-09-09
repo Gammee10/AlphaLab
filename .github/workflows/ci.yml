@@ -25,3 +25,32 @@ jobs:
       - name: Typecheck
         run: python -m mypy alphalab_contracts alphalab_core alphalab_marketdata alphalab_store alphalab_api alphalab_ai
         working-directory: backend
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: npm ci
+        working-directory: web
+      - name: Codegen freshness (shared schema -> web enums)
+        run: |
+          python backend/scripts/codegen.py
+          git diff --exit-code -- web/src/generated
+      - name: Typecheck
+        run: npx tsc --noEmit
+        working-directory: web
+      - name: Unit tests
+        run: npm run test
+        working-directory: web
+      - name: Build
+        run: npm run build
+        working-directory: web

@@ -46,7 +46,7 @@ No microservices, no Redis/Kafka/K8s, no broker connectors, no separate Node bac
 | Backend / core | Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2 + SQLite (`aiosqlite`), Alembic | Quant ecosystem (numpy, pytest, hypothesis), strong server validation, AI SDK maturity; single API process keeps audit linear |
 | Core purity | `alphalab_core`: stdlib + numpy only | Purity test blocks I/O/AI/SQL imports; numpy confined to causal indicator kernels, event loop stays explicit-index (no vectorized signal shifts) |
 | Frontend | TypeScript React 18 + Vite + TanStack Query + uPlot/ECharts; Zod schemas codegen'd from `shared/schemas` | SPA fits localhost dashboard; Next.js deferred (no SEO/SSR need — see ADR 0009); Node confined to toolchain + form validation mirror |
-| Contract bridge | Canonical `strategy.spec.json` + OpenAPI; `make codegen` + CI equivalence tests | Prevents the polyglot killer (Pydantic/Zod drift) by making drift a red build |
+| Contract bridge | Canonical `strategy.spec.json`; `make codegen` emits web enums (CI freshness-gated); backend validates jsonschema-direct against the same file; template fixtures re-validate in CI | Prevents the polyglot killer (schema drift) by making drift a red build |
 | Tests | pytest + hypothesis (backend, incl. property tests) + Vitest (web) | Best-in-class deterministic + property testing per side |
 | Jobs | asyncio in-process queue (no Redis/Celery in MVP) | Same semantics as before, Python-native |
 | Time | UTC millis integers everywhere; ISO-8601 only at API boundary | Eliminates tz bugs |

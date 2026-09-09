@@ -20,7 +20,7 @@ Conflict? Stop, surface it, do not silently pick one.
 - Money math lives **only** in `alphalab_core` (`Decimal` for cash/fees/notional). `web/` never computes P&L, equity, metrics (grep-gate outside `formatters/`).
 - Strategy changes go through `shared/schemas/strategy.spec.json` first: edit schema → regenerate Pydantic + Zod → equivalence test green. Never add a field in one language only.
 - Completed rows (`strategy_versions`, `datasets`, `backtest_runs`) are **immutable** — updates must fail; create new versions.
-- AI output is **untrusted**: must pass Pydantic schema validation + grounding check and (for strategy changes) explicit user confirmation before it becomes a new `StrategyVersion`. Raw model text never applied.
+- AI output is **untrusted**: must pass canonical-schema validation + grounding check and (for strategy changes) explicit user confirmation before it becomes a new `StrategyVersion`. Raw model text never applied.
 - Determinism: same `(specHash, datasetHash, configHash, engineVersion, instrumentMetaVersion)` → identical result hash. Any nondeterminism is a P0 bug.
 - No lookahead: signal at bar `t` may only use bars `≤ t`; fills no earlier than open `t+1`. No vectorized signal shifts (`shift(-1)` etc.) — explicit index loop only. Indicators seed from the warmup lookback (`warmupBars = max(3×maxPeriod, 50)`), never from `startTime`. When in doubt, choose the **pessimistic** fill and disclose it.
 - Money in `Decimal`/TEXT; market bars may be REAL. Float `==` uses epsilon `1e-9`; crosses need t and t−1 non-warmup.
@@ -54,11 +54,12 @@ web/ → renders server data only; Zod schemas generated, not hand-diverged
 ```bash
 make dev-api    # uvicorn alphalab_api --localhost:4100
 make dev-web    # vite dev (proxies /api)
-make codegen    # shared/schemas → pydantic + zod
-make test       # pytest (backend) + vitest (web) + contract-equivalence
+make codegen    # shared/schemas → web/src/generated (CI asserts freshness)
+make test       # pytest (backend)
+make test-web   # vitest (web)
 make test-core  # pytest backend/alphalab_core only — must always pass
-make typecheck  # mypy/pyright (backend) + tsc --noEmit (web)
-make migrate    # alembic upgrade head
+make typecheck  # mypy (backend) + tsc --noEmit (web)
+make migrate    # python -m alphalab_store.database
 ```
 
 Paths: samples in `data/samples/`, migrations in `backend/alphalab_store/migrations/`, fixtures in `backend/tests/fixtures/`, shared schema in `shared/schemas/strategy.spec.json`.

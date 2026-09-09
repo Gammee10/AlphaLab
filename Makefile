@@ -3,10 +3,13 @@
 PY ?= .venv/Scripts/python.exe
 BACKEND = backend
 
-.PHONY: test test-core typecheck purity dev-api dev-web codegen migrate
+.PHONY: test test-core typecheck purity dev-api dev-web codegen migrate test-web
 
 test:
 	$(PY) -m pytest $(BACKEND)/tests -q
+
+test-web:
+	npm --prefix web run test
 
 test-core:
 	$(PY) -m pytest $(BACKEND)/tests/test_purity.py -q
@@ -19,7 +22,7 @@ purity:
 	$(PY) -m pytest $(BACKEND)/tests/test_purity.py -q
 
 dev-api:
-	$(PY) -m uvicorn alphalab_api:app --host 127.0.0.1 --port 4100
+	cd $(BACKEND) && ../$(PY) -m uvicorn alphalab_api.app:create_app --factory --host 127.0.0.1 --port 4100
 
 dev-web:
 	npm --prefix web run dev
