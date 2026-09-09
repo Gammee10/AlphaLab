@@ -257,7 +257,6 @@ def get_run(session: Session, run_id: str) -> models.BacktestRun | None:
 
 # --- experiments ---
 
-
 def create_experiment(
     session: Session, *, name: str, run_ids: list[str],
     baseline_run_id: str | None, hypothesis: str | None = None,
@@ -276,3 +275,51 @@ def get_experiment(session: Session, experiment_id: str) -> models.Experiment | 
     if exp is not None and exp.user_id != USER:
         return None
     return exp
+
+
+# --- AI artifacts (docs/ai-assistant.md). No key column exists by design. ---
+
+CACHE_TTL_S = 30 * 24 * 3600
+
+
+def cache_get(session: Session, provider: str, model: str, key: str) -> models.AiCache | None:
+    row = session.get(models.AiCache, {"provider": provider, "model": model, "cache_key": key})
+    if row is None or now_ms() - row.created_at > CACHE_TTL_S * 1000:
+        return None
+    return row
+
+
+def cache_set(session: Session, provider: str, model: str, key: str, payload: str, tokens: int) -> None:
+    row = session.get(models.AiCache, {"provider": provider, "model": model, "cache_key": key})
+    if row is None:
+        row = models.AiCache(provider=provider, model=model, cache_key=key, payload=payload,
+                             tokens=tokens, created_at=now_ms())
+        session.add(row)
+    else:
+        row.payload = payload
+        row.tokens = tokens
+        row.created_at = now_ms()
+    session.flush()
+
+
+def log_trace(session: Session, *, proposal_id: str | None, provider: str, model: str | None,
+              prompt_hash: str, response_hash: str, tokens_in: int, tokens_out: int) -> None:
+    session.add(models.AiTrace(
+        id=new_id(), proposal_id=proposal_id, provider=provider, model=model,
+        prompt_hash=prompt_hash, response_hash=response_hash,
+        tokens_in=tokens_in, tokens_out=tokens_out, created_at=now_ms(),
+    ))
+    session.flush()
+
+
+def save_proposal(session: Session, *, input_refs: dict[str, Any], intent: str, patch: dict[str, Any],
+                  validation: dict[str, Any], provider: str, model: str | None,
+                  tokens: int | None) -> models.AiProposal:
+    row = models.AiProposal(
+        id=new_id(), status="proposed", input_refs=input_refs, intent=intent[:1000],
+        patch=patch, validation=validation, provider=provider, model=model,
+        tokens=tokens, created_at=now_ms(),
+    )
+    session.add(row)
+    session.flush()
+    return row

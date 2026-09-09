@@ -57,7 +57,7 @@ GET    /api/ai/status                      → { provider: gemini|ruled, keyConf
 { "code": "STRATEGY_INVALID", "message": "entry.conditions[0]: unknown indicator ref 'ema999'", "details": {} }
 ```
 
-Codes: `VALIDATION_ERROR, STRATEGY_INVALID, NOT_SUPPORTED_IN_MVP, DATASET_INVALID, DATA_NOT_ORDERED, LOOKAHEAD_OFFSET_REJECTED, INSUFFICIENT_DATA, TOO_MANY_TRADES, JOB_NOT_FOUND, JOB_NOT_CANCELLABLE, RATE_LIMITED, AI_VALIDATION_FAILED, AI_NOT_CONFIGURED, AI_QUOTA_EXHAUSTED, INTERNAL`. HTTP mapping: 400 validation/domain, 404 missing, 409 conflict, 429 limits/quota, 500 internal (logged, no stack to client). Quota exhaustion auto-falls-back to the ruled provider for that call (response carries `provider: ruled, fallbackReason: quota`) rather than failing the UX, unless the caller passes `strictProvider: gemini`.
+Codes: `VALIDATION_ERROR, STRATEGY_INVALID, NOT_SUPPORTED_IN_MVP, DATASET_INVALID, DATA_NOT_ORDERED, LOOKAHEAD_OFFSET_REJECTED, INSUFFICIENT_DATA, TOO_MANY_TRADES, JOB_NOT_FOUND, JOB_NOT_CANCELLABLE, RATE_LIMITED, AI_VALIDATION_FAILED, AI_NOT_CONFIGURED, AI_QUOTA_EXHAUSTED, STALE_PATCH, NOT_FOUND, INTERNAL`. HTTP mapping: 400 validation/domain, 404 missing, 409 conflict, 429 limits/quota, 500 internal (logged, no stack to client). Quota exhaustion auto-falls-back to the ruled provider for that call (response carries `provider: ruled, fallbackReason: quota`) rather than failing the UX, unless the caller passes `strictProvider: gemini`.
 
 ## Pagination / size discipline
 

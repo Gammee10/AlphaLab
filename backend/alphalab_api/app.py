@@ -18,6 +18,7 @@ from alphalab_store import models, repos
 from alphalab_store.database import migrate, session_factory
 
 from .deps import alphalab_error_handler
+from .routes_ai import router as ai_router
 from .routes_catalog import router as catalog_router
 from .routes_runs import router as runs_router
 from .service import TooManyTrades
@@ -61,6 +62,7 @@ def create_app(db_path: Path | str | None = None) -> FastAPI:
     app.state.session_factory = session_factory(settings.db_path)
     app.include_router(catalog_router)
     app.include_router(runs_router)
+    app.include_router(ai_router)
     for exc in (AlphaLabError, KeyError, TooManyTrades, MarketDatasetInvalid):
         app.add_exception_handler(exc, alphalab_error_handler)
 

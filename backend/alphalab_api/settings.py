@@ -18,9 +18,18 @@ class Settings:
     job_timeout_s: int = 120
     sweep_max_combos: int = 32
     max_trades_per_run: int = 50_000
+    ai_provider: str = "auto"  # auto | gemini | ruled
+    ai_daily_input_tokens: int = 200_000
 
 
 def load_settings(db_path: Path | str | None = None) -> Settings:
     root = Path(__file__).resolve().parent.parent.parent
     default_db = Path(os.environ.get("ALPHALAB_DB", str(root / "data" / "alphalab.sqlite3")))
-    return Settings(db_path=Path(db_path) if db_path else default_db)
+    provider = os.environ.get("ALPHALAB_AI_PROVIDER", "auto")
+    if provider not in ("auto", "gemini", "ruled"):
+        provider = "auto"
+    return Settings(db_path=Path(db_path) if db_path else default_db, ai_provider=provider)
+
+
+def gemini_key() -> str | None:
+    return os.environ.get("GEMINI_API_KEY")
