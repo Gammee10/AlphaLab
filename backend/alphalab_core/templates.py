@@ -214,8 +214,7 @@ def momentum_rsi(params: dict[str, Any]) -> dict[str, Any]:
     return spec
 
 
-TEMPLATES: dict[str, dict[str, Any]] = {
-    "trend-pullback": {
+TEMPLATES: dict[str, dict[str, Any]] = {    "trend-pullback": {
         "version": "1.0",
         "displayName": "Trend pullback",
         "description": "Trade with the EMA trend, enter on a pullback with confirmation.",
@@ -238,6 +237,66 @@ TEMPLATES: dict[str, dict[str, Any]] = {
         "displayName": "RSI momentum",
         "description": "RSI regime filter with a trigger cross for continuation entries.",
         "instantiate": momentum_rsi,
+    },
+}
+
+
+def _p(default: Any, lo: float, hi: float, integer: bool = False, label: str = "") -> dict[str, Any]:
+    schema: dict[str, Any] = {"type": "integer" if integer else "number", "minimum": lo, "maximum": hi, "default": default}
+    if label:
+        schema["title"] = label
+    return schema
+
+
+PARAM_SCHEMAS: dict[str, dict[str, Any]] = {
+    "trend-pullback": {
+        "type": "object",
+        "properties": {
+            "fastEma": _p(50, 2, 500, True, "Fast EMA"),
+            "slowEma": _p(200, 2, 500, True, "Slow EMA"),
+            "pullbackEma": _p(20, 2, 500, True, "Pullback EMA"),
+            "atrPeriod": _p(14, 2, 100, True, "ATR period"),
+            "slAtr": _p(1.5, 0.25, 10, False, "Stop (ATR mult)"),
+            "rr": _p(2.0, 0.25, 10, False, "Take-profit (R)"),
+            "direction": {"type": "string", "enum": ["long", "short"], "default": "long"},
+            "riskPct": _p(0.5, 0.05, 5, False, "Risk %"),
+            "sessionStart": _p(7, 0, 24, True, "Session start (UTC h)"),
+            "sessionEnd": _p(20, 0, 24, True, "Session end (UTC h)"),
+        },
+    },
+    "breakout-donchian": {
+        "type": "object",
+        "properties": {
+            "channel": _p(20, 2, 500, True, "Donchian channel"),
+            "atrPeriod": _p(14, 2, 100, True, "ATR period"),
+            "slAtr": _p(1.0, 0.25, 10, False, "Stop (ATR mult)"),
+            "rr": _p(2.0, 0.25, 10, False, "Take-profit (R)"),
+            "riskPct": _p(0.5, 0.05, 5, False, "Risk %"),
+        },
+    },
+    "mean-reversion-bollinger": {
+        "type": "object",
+        "properties": {
+            "bbPeriod": _p(20, 2, 500, True, "BB period"),
+            "stdDev": _p(2.0, 0.5, 4, False, "BB std dev"),
+            "rsiPeriod": _p(14, 2, 100, True, "RSI period"),
+            "rsiLow": _p(30.0, 5, 45, False, "RSI oversold"),
+            "rsiHigh": _p(70.0, 55, 95, False, "RSI overbought"),
+            "slAtr": _p(1.5, 0.25, 10, False, "Stop (ATR mult)"),
+            "rr": _p(1.5, 0.25, 10, False, "Take-profit (R)"),
+            "riskPct": _p(0.5, 0.05, 5, False, "Risk %"),
+        },
+    },
+    "momentum-rsi": {
+        "type": "object",
+        "properties": {
+            "rsiPeriod": _p(14, 2, 100, True, "RSI period"),
+            "entry": _p(55.0, 50, 90, False, "RSI entry trigger"),
+            "exit": _p(45.0, 10, 50, False, "RSI regime floor"),
+            "slAtr": _p(2.0, 0.25, 10, False, "Stop (ATR mult)"),
+            "rr": _p(2.0, 0.25, 10, False, "Take-profit (R)"),
+            "riskPct": _p(0.5, 0.05, 5, False, "Risk %"),
+        },
     },
 }
 

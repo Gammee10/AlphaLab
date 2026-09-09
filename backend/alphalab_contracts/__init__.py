@@ -11,6 +11,7 @@ from .errors import (
     ErrorPayload,
     NotSupportedError,
     StrategyInvalidError,
+    ValidationError,
     ValidationIssue,
 )
 from .runs import config_hash, result_hash
@@ -22,6 +23,7 @@ __all__ = [
     "ErrorPayload",
     "NotSupportedError",
     "StrategyInvalidError",
+    "ValidationError",
     "ValidationIssue",
     "canonical_json",
     "canonicalize",

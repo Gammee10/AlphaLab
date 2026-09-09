@@ -33,9 +33,18 @@ def new_id() -> str:
     return uuid.uuid4().hex
 
 
+def money_str(value: Decimal) -> str:
+    """Canonical money text: plain fixed notation, no exponent, no trailing dust."""
+    normalized = value.normalize()
+    text = format(normalized, "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text if text not in ("-0", "") else "0"
+
+
 def json_safe(value: Any) -> Any:
     if isinstance(value, Decimal):
-        return str(value)
+        return money_str(value)
     if isinstance(value, dict):
         return {k: json_safe(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
@@ -190,13 +199,13 @@ def recover_interrupted(session: Session) -> int:
 
 def downsample_equity(equity: list[tuple[int, Decimal]], limit: int = 2000) -> list[list[Any]]:
     if len(equity) <= limit:
-        return [[t, str(e)] for t, e in equity]
+        return [[t, money_str(e)] for t, e in equity]
     step = len(equity) / limit
-    return [[equity[int(i * step)][0], str(equity[int(i * step)][1])] for i in range(limit)]
+    return [[equity[int(i * step)][0], money_str(equity[int(i * step)][1])] for i in range(limit)]
 
 
 def full_resolution_hash(equity: list[tuple[int, Decimal]]) -> str:
-    canonical = json.dumps([[t, str(e)] for t, e in equity], separators=(",", ":"))
+    canonical = json.dumps([[t, money_str(e)] for t, e in equity], separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
@@ -219,19 +228,20 @@ def insert_run(
     for t in payload.trades:
         session.add(models.Trade(
             id=new_id(), run_id=run.id, entry_bar=t.entry_bar, exit_bar=t.exit_bar,
-            direction=t.direction, qty=str(t.qty), entry_price=str(t.entry_price),
-            exit_price=str(t.exit_price), fees=str(t.fees), gross_pnl=str(t.gross_pnl),
-            net_pnl=str(t.net_pnl), intended_risk=str(t.intended_risk),
-            realized_risk=str(t.realized_risk), signal_time=t.signal_time,
+            direction=t.direction, qty=money_str(t.qty), entry_price=money_str(t.entry_price),
+            exit_price=money_str(t.exit_price), fees=money_str(t.fees),
+            gross_pnl=money_str(t.gross_pnl), net_pnl=money_str(t.net_pnl),
+            intended_risk=money_str(t.intended_risk), realized_risk=money_str(t.realized_risk),
+            signal_time=t.signal_time,
             exit_reason=t.exit_reason, ambiguous=1 if t.ambiguous else 0,
         ))
     for o in payload.orders:
         session.add(models.Order(
             id=new_id(), run_id=run.id, signal_bar=o.signal_bar, fill_bar=o.fill_bar,
             kind="market", direction=o.direction,
-            qty=str(o.qty) if o.fill_bar is not None else None, state=o.state,
-            fill_price=str(o.fill_price) if o.fill_bar is not None else None,
-            fees=str(o.fees) if o.fill_bar is not None else None,
+            qty=money_str(o.qty) if o.fill_bar is not None else None, state=o.state,
+            fill_price=money_str(o.fill_price) if o.fill_bar is not None else None,
+            fees=money_str(o.fees) if o.fill_bar is not None else None,
         ))
     session.flush()
     return run

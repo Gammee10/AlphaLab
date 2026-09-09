@@ -16,10 +16,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any
+from typing import Any, Callable
 
 from .bars import BarArrays, IndicatorResult
-from .config import ENGINE_VERSION, BacktestConfig, Order, RunPayload, Trade, money
+from .config import ENGINE_VERSION, BacktestCancelled, BacktestConfig, Order, RunPayload, Trade, money
 from .indicators import atr, compute_all
 from .instruments import get_instrument
 
@@ -157,7 +157,19 @@ def _in_session(open_time_ms: int, start_h: int, end_h: int) -> bool:
     return bool(hour >= start_h or hour < end_h)
 
 
-def run_backtest(spec: dict[str, Any], bars: BarArrays, config: BacktestConfig) -> RunPayload:
+def run_backtest(
+    spec: dict[str, Any],
+    bars: BarArrays,
+    config: BacktestConfig,
+    should_cancel: Callable[[int], bool] | None = None,
+    progress: Callable[[int, int], None] | None = None,
+) -> RunPayload:
+    """Execute a backtest. Callbacks are caller-owned and result-neutral.
+
+    ``should_cancel(bar_index)`` is polled every 1,000 bars; truthy raises
+    ``BacktestCancelled``. ``progress(processed, total)`` fires every 10,000
+    bars. Both default to None (no-op); determinism is unaffected either way.
+    """
     meta = get_instrument(config.symbol)
     n = len(bars)
     values = compute_all(bars, spec["indicators"])
@@ -416,7 +428,12 @@ def run_backtest(spec: dict[str, Any], bars: BarArrays, config: BacktestConfig) 
         orders.append(order)
 
     prev_time: int | None = None
+    total = len(in_range)
     for idx_pos, i in enumerate(in_range):
+        if should_cancel is not None and idx_pos % 1000 == 0 and should_cancel(i):
+            raise BacktestCancelled(f"cancelled at bar index {i}")
+        if progress is not None and idx_pos % 10000 == 0:
+            progress(idx_pos, total)
         cur_time = int(bars.open_time[i])
         if prev_time is not None and config.bar_step_ms > 0:
             diff = cur_time - prev_time

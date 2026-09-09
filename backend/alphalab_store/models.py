@@ -35,7 +35,7 @@ class StrategyVersion(Base):
     strategy_id: Mapped[str] = mapped_column(String, index=True)
     version_number: Mapped[int] = mapped_column(Integer)
     spec: Mapped[str] = mapped_column(Text)  # canonical JSON
-    spec_hash: Mapped[str] = mapped_column(String, unique=True)
+    spec_hash: Mapped[str] = mapped_column(String, index=True)  # content-addressed, not unique (0002)
     parent_version_id: Mapped[str | None] = mapped_column(String, nullable=True)
     provenance: Mapped[dict[str, Any]] = mapped_column(JSON)
     created_at: Mapped[int] = mapped_column(BigInteger)

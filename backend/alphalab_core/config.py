@@ -14,6 +14,10 @@ ENGINE_VERSION = "engine/1.0"
 EPS = Decimal("0.000000001")
 
 
+class BacktestCancelled(Exception):
+    """Raised when a caller's should_cancel hook fires. Not an engine error."""
+
+
 def money(value: float | int | str | Decimal) -> Decimal:
     if isinstance(value, Decimal):
         return value

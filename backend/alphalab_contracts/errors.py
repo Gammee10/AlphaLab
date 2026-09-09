@@ -22,6 +22,10 @@ class AlphaLabError(Exception):
         self.details: dict[str, Any] = details or {}
 
 
+class ValidationError(AlphaLabError):
+    code = "VALIDATION_ERROR"
+
+
 class StrategyInvalidError(AlphaLabError):
     code = "STRATEGY_INVALID"
 
