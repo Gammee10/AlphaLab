@@ -1,76 +1,134 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "../api";
+import { navigate } from "../router";
+import { errText, useUi } from "../store";
 import { MultiEquity } from "../charts";
-import { Badge, ErrorNotice, Loading, PageHead } from "../components/ui";
-import { deltaClass, fmtMoney, normalize } from "../format";
+import {
+  Badge,
+  EmptyState,
+  ErrorInline,
+  Loading,
+  Modal,
+  PageHead,
+  SectionLabel,
+} from "../components/ui";
+import { IcPlus, IcSearch, IcX } from "../components/icons";
+import { deltaClass, fmtMoney, normalize, shortHash } from "../format";
 
-export function Compare({ seedRunId, onOpenRun }: { seedRunId: string | null; onOpenRun: (id: string) => void }) {
-  const [ids, setIds] = useState<string>(seedRunId ?? "");
+export function Compare({ seedRunId }: { seedRunId: string | null }) {
+  const runs = useQuery({ queryKey: ["runs-50"], queryFn: () => api.runs(50) });
+  const { toast } = useUi();
+
+  const [ids, setIds] = useState<string[]>(seedRunId ? [seedRunId] : []);
   const [name, setName] = useState("comparison");
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState("");
   const [experimentId, setExperimentId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const create = useMutation({
-    mutationFn: () => {
-      const runIds = ids.split(/[,\s]+/).filter(Boolean);
-      return api.createExperiment({ name, runIds, baselineRunId: runIds[0] });
-    },
+    mutationFn: () => api.createExperiment({ name, runIds: ids, baselineRunId: ids[0] }),
     onSuccess: (data) => {
       setExperimentId(data.experiment.id);
       setError("");
+      toast("Experiment created", "ok");
     },
-    onError: (e: Error & { code?: string }) => setError(`${e.code ?? "ERROR"}: ${e.message}`),
+    onError: (e: Error & { code?: string }) => {
+      setError(errText(e));
+      toast(errText(e), "error");
+    },
   });
+
   const experiment = useQuery({
     queryKey: ["experiment", experimentId],
     queryFn: () => api.experiment(experimentId!),
     enabled: experimentId !== null,
   });
-  const runs = useQuery({
+  const detailRuns = useQuery({
     queryKey: ["compare-runs", experiment.data?.runs.map((r) => r.id).join(",")],
     queryFn: async () => Promise.all(experiment.data!.runs.map((r) => api.run(r.id))),
     enabled: !!experiment.data,
   });
 
+  const pickerList = useMemo(() => {
+    const all = runs.data?.runs ?? [];
+    const needle = pickerSearch.trim().toLowerCase();
+    return needle ? all.filter((r) => r.resultHash.toLowerCase().includes(needle)) : all;
+  }, [runs.data, pickerSearch]);
+
+  const toggleId = (rid: string) =>
+    setIds((prev) => (prev.includes(rid) ? prev.filter((x) => x !== rid) : prev.length >= 32 ? prev : [...prev, rid]));
+
+  const canCompare = ids.length >= 2 && ids.length <= 32;
+
   return (
     <div>
-      <PageHead title="Compare runs" sub="Material differences against the baseline first, then metric deltas and normalized equity." />
+      <PageHead
+        title="Compare runs"
+        sub="Material differences against the baseline first, then metric deltas and normalized equity."
+        actions={
+          <button className="btn glass" onClick={() => setPickerOpen(true)}>
+            <IcPlus size={14} />
+            Add runs
+          </button>
+        }
+      />
 
-      <div className="card" style={{ maxWidth: 860 }}>
+      <div className="glass">
         <div className="field-row">
           <label className="field">
-            Name
-            <input value={name} onChange={(e) => setName(e.target.value)} />
+            <span className="field-label">Experiment name</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} style={{ maxWidth: 240 }} />
           </label>
-          <label className="field" style={{ maxWidth: 460, flex: 1 }}>
-            Run ids (comma/space separated, 2–32)
-            <input value={ids} onChange={(e) => setIds(e.target.value)} placeholder="e.g. 1a2b3c4d, 5e6f7081" />
-          </label>
-          <button className="btn primary" onClick={() => create.mutate()} disabled={create.isPending}>
-            {create.isPending ? "Comparing…" : "Compare"}
+          <button
+            className="btn primary"
+            disabled={!canCompare || experimentId !== null}
+            onClick={() => create.mutate()}
+            title={canCompare ? "" : "Select 2–32 runs first"}
+          >
+            Compare {ids.length} run{ids.length === 1 ? "" : "s"}
           </button>
         </div>
-        {error && <ErrorNotice message={error} />}
+
+        <SectionLabel>Selection</SectionLabel>
+        {ids.length === 0 ? (
+          <p className="muted" style={{ fontSize: "0.88rem" }}>
+            No runs selected — pick at least two from the run list.
+          </p>
+        ) : (
+          <div className="row-wrap">
+            {ids.map((rid, i) => (
+              <span key={rid} className="row-wrap" style={{ gap: "0.3rem", background: "var(--inset)", border: "1px solid var(--border)", borderRadius: 999, padding: "0.2rem 0.4rem 0.2rem 0.8rem" }}>
+                {i === 0 && <Badge kind="acc">baseline</Badge>}
+                <code>{rid.slice(0, 8)}</code>
+                <button className="mini-btn danger" style={{ borderRadius: 999, padding: "0.05rem 0.45rem" }} onClick={() => toggleId(rid)} aria-label="Remove">
+                  <IcX size={11} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        {error && <ErrorInline text={error} />}
       </div>
 
       {experiment.isLoading && <Loading text="Building experiment…" />}
 
       {experiment.data && (
         <>
-          <h3 className="section-title">What changed vs baseline</h3>
-          <div className="card">
-            <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+          <SectionLabel>What changed vs baseline</SectionLabel>
+          <div className="glass">
+            <div className="row-wrap">
               {experiment.data.diff.map((d) => (
-                <Badge key={d} kind="neutral">
+                <span key={d} className="rule-chip" style={{ color: "var(--text-2)" }}>
                   {d}
-                </Badge>
+                </span>
               ))}
             </div>
           </div>
 
-          <h3 className="section-title">Metric deltas</h3>
-          <div className="card table-card">
+          <SectionLabel>Metric deltas</SectionLabel>
+          <div className="glass" style={{ padding: 0, overflow: "hidden" }}>
             <table>
               <thead>
                 <tr>
@@ -86,7 +144,7 @@ export function Compare({ seedRunId, onOpenRun }: { seedRunId: string | null; on
                 {Object.entries(experiment.data.deltas).map(([rid, d]) => (
                   <tr key={rid}>
                     <td>
-                      <button className="link" onClick={() => onOpenRun(rid)}>
+                      <button className="link" onClick={() => navigate(`/run/${rid}`)} style={{ background: "none", border: "none", cursor: "pointer", font: "inherit" }}>
                         <code>{rid.slice(0, 8)}</code>
                       </button>
                     </td>
@@ -101,24 +159,83 @@ export function Compare({ seedRunId, onOpenRun }: { seedRunId: string | null; on
             </table>
           </div>
 
-          {runs.isLoading && <Loading text="Loading equity curves…" />}
-          {runs.data && (
-            <div className="chart-card card">
-              <div className="chart-title">
-                <span>Normalized equity</span>
-                <span className="faint">% from own start — comparable across capitals</span>
+          {detailRuns.isLoading && <Loading text="Loading equity curves…" />}
+          {detailRuns.data && (
+            <div className="chart-panel glass">
+              <div className="chart-head">
+                <div className="chart-name">Normalized equity</div>
+                <span className="faint" style={{ fontSize: "0.75rem" }}>% from own start — comparable across capitals</span>
               </div>
-              <MultiEquity curves={runs.data.map((r) => ({ label: r.run.id.slice(0, 8), points: normalize(r.run.equityCurve) }))} />
-              <div style={{ display: "flex", gap: "0.8rem", flexWrap: "wrap", marginTop: "0.4rem" }}>
-                {runs.data.map((r) => (
-                  <span key={r.run.id} className="muted" style={{ fontSize: "0.85rem" }}>
-                    <code>{r.run.id.slice(0, 8)}</code> net <span className={deltaClass(Number(r.run.metrics.netProfit))}>{fmtMoney(r.run.metrics.netProfit)}</span>
+              <MultiEquity curves={detailRuns.data.map((r) => ({ label: r.run.id.slice(0, 8), points: normalize(r.run.equityCurve) }))} />
+              <div className="row-wrap" style={{ marginTop: "0.5rem" }}>
+                {detailRuns.data.map((r) => (
+                  <span key={r.run.id} className="muted" style={{ fontSize: "0.83rem" }}>
+                    <code>{r.run.id.slice(0, 8)}</code> net{" "}
+                    <span className={deltaClass(Number(r.run.metrics.netProfit))}>{fmtMoney(r.run.metrics.netProfit)}</span>
                   </span>
                 ))}
               </div>
             </div>
           )}
         </>
+      )}
+
+      {pickerOpen && (
+        <Modal title="Pick runs to compare" onClose={() => setPickerOpen(false)} wide>
+          <div className="row-wrap" style={{ marginBottom: "0.8rem" }}>
+            <IcSearch size={14} />
+            <input
+              autoFocus
+              value={pickerSearch}
+              onChange={(e) => setPickerSearch(e.target.value)}
+              placeholder="Filter by run hash…"
+              style={{ flex: 1 }}
+            />
+            <Badge kind="neutral">{ids.length}/32 selected</Badge>
+          </div>
+          {runs.isLoading ? (
+            <Loading text="Loading runs…" />
+          ) : pickerList.length === 0 ? (
+            <EmptyState title="No runs found">No run matches that hash filter.</EmptyState>
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>Pick</th>
+                  <th>Run</th>
+                  <th>Trades</th>
+                  <th>Net</th>
+                  <th>PF</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pickerList.map((r) => {
+                  const picked = ids.includes(r.id);
+                  return (
+                    <tr key={r.id} className={picked ? "selected" : ""}>
+                      <td>
+                        <input type="checkbox" checked={picked} onChange={() => toggleId(r.id)} />
+                      </td>
+                      <td>
+                        <code>{shortHash(r.resultHash)}</code>
+                      </td>
+                      <td>{r.tradeCount ?? "—"}</td>
+                      <td className={deltaClass(r.netProfit === null ? null : Number(r.netProfit))}>
+                        {r.netProfit === null ? "—" : fmtMoney(r.netProfit)}
+                      </td>
+                      <td>{r.profitFactor === null ? "—" : r.profitFactor.toFixed(2)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.9rem" }}>
+            <button className="btn primary sm" onClick={() => setPickerOpen(false)}>
+              Done
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   );

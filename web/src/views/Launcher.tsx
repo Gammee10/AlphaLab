@@ -1,26 +1,33 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type Job } from "../api";
+import { navigate } from "../router";
+import { errText, useUi } from "../store";
 import { PriceChart } from "../charts";
-import { Badge, ErrorNotice, IconAlert, PageHead } from "../components/ui";
+import {
+  Badge,
+  Banner,
+  ErrorInline,
+  Loading,
+  PageHead,
+} from "../components/ui";
+import { IcPlay, IcWarn } from "../components/icons";
 
-interface Props {
-  presetVersionId: string | null;
-  onDone: (runId: string) => void;
-}
-
-const STATES: Record<string, "ok" | "bad" | "accent" | "neutral"> = {
+const JOB_BADGE: Record<string, "ok" | "bad" | "acc" | "warn" | "neutral"> = {
   completed: "ok",
   failed: "bad",
   cancelled: "neutral",
-  running: "accent",
-  queued: "accent",
+  running: "acc",
+  queued: "acc",
 };
 
-export function Launcher({ presetVersionId, onDone }: Props) {
+export function Launcher({ presetVersionId }: { presetVersionId: string | null }) {
   const datasets = useQuery({ queryKey: ["datasets"], queryFn: api.datasets });
-  const [datasetId, setDatasetId] = useState("");
+  const client = useQueryClient();
+  const { toast } = useUi();
+
   const [versionId, setVersionId] = useState(presetVersionId ?? "");
+  const [datasetId, setDatasetId] = useState("");
   const [start, setStart] = useState("2024-01-01");
   const [end, setEnd] = useState("2024-06-01");
   const [capital, setCapital] = useState("10000");
@@ -32,7 +39,6 @@ export function Launcher({ presetVersionId, onDone }: Props) {
   const [csvText, setCsvText] = useState("");
   const [csvSymbol, setCsvSymbol] = useState("EURUSD");
   const [csvTf, setCsvTf] = useState("M15");
-  const client = useQueryClient();
 
   useEffect(() => {
     if (presetVersionId) setVersionId(presetVersionId);
@@ -51,8 +57,12 @@ export function Launcher({ presetVersionId, onDone }: Props) {
       setDatasetId(data.dataset.id);
       setError("");
       setCsvText("");
+      toast(`Dataset imported${data.dataset.deduped ? " (deduplicated)" : ""}`, "ok");
     },
-    onError: (e: Error & { code?: string }) => setError(`${e.code ?? "ERROR"}: ${e.message}`),
+    onError: (e: Error & { code?: string }) => {
+      setError(errText(e));
+      toast(errText(e), "error");
+    },
   });
 
   const run = useMutation({
@@ -73,10 +83,18 @@ export function Launcher({ presetVersionId, onDone }: Props) {
       }),
     onSuccess: (data) => {
       setError("");
-      if ("run" in data) onDone(data.run.id);
-      else setJob(data.job);
+      if ("run" in data) {
+        toast("Backtest complete", "ok");
+        navigate(`/run/${data.run.id}`);
+      } else {
+        setJob(data.job);
+        toast("Job queued — streaming progress", "info");
+      }
     },
-    onError: (e: Error & { code?: string }) => setError(`${e.code ?? "ERROR"}: ${e.message}`),
+    onError: (e: Error & { code?: string }) => {
+      setError(errText(e));
+      toast(errText(e), "error");
+    },
   });
 
   useEffect(() => {
@@ -90,7 +108,10 @@ export function Launcher({ presetVersionId, onDone }: Props) {
         setJob((j) => (j ? { ...j, state: snap.state, progress: snap.progress } : j));
         if (snap.state === "completed" && snap.progress?.runId) {
           source?.close();
-          if (!stop) onDone(snap.progress.runId);
+          if (!stop) {
+            toast("Backtest complete", "ok");
+            navigate(`/run/${snap.progress.runId}`);
+          }
         }
       };
       source.onerror = () => {
@@ -105,7 +126,10 @@ export function Launcher({ presetVersionId, onDone }: Props) {
       try {
         const current = await api.job(job.id);
         setJob(current.job);
-        if (current.job.state === "completed" && current.job.progress?.runId && !stop) onDone(current.job.progress.runId);
+        if (current.job.state === "completed" && current.job.progress?.runId && !stop) {
+          toast("Backtest complete", "ok");
+          navigate(`/run/${current.job.progress.runId}`);
+        }
       } catch {
         /* keep polling */
       }
@@ -118,32 +142,43 @@ export function Launcher({ presetVersionId, onDone }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [job?.id]);
 
-  const barsDone = job?.progress ? `${job.progress.barsProcessed}/${job.progress.barTotal}` : "";
   const pct = job?.progress && job.progress.barTotal > 0 ? (job.progress.barsProcessed / job.progress.barTotal) * 100 : 0;
 
   return (
     <div>
-      <PageHead title="Backtest launcher" sub="Historical simulation with pessimistic fills. Assumptions are stored with the run — history never rewrites them." />
+      <PageHead
+        title="Backtest launcher"
+        sub="Historical simulation with pessimistic fills. Assumptions are stored with the run — history never rewrites them."
+      />
 
-      <div className="card step-card">
+      <div className="glass step-card">
         <div className="step-head">
-          <span className="step-num">1</span>
-          <h4 className="step-title">Strategy version <span className="step-hint">— paste the id from the strategy page</span></h4>
+          <span className="step-badge">1</span>
+          <div className="step-title">
+            Strategy version <span className="step-hint">— id from the strategy page</span>
+          </div>
         </div>
         <label className="field">
-          Version id
-          <input value={versionId} onChange={(e) => setVersionId(e.target.value)} size={40} placeholder="e.g. 3f9a… (from strategy detail)" />
+          <span className="field-label">Version id</span>
+          <input
+            value={versionId}
+            onChange={(e) => setVersionId(e.target.value)}
+            placeholder="e.g. 3f9a… (from strategy detail page)"
+            style={{ maxWidth: 420, fontFamily: "var(--font-mono)" }}
+          />
         </label>
       </div>
 
-      <div className="card step-card">
+      <div className="glass step-card">
         <div className="step-head">
-          <span className="step-num">2</span>
-          <h4 className="step-title">Dataset</h4>
+          <span className="step-badge">2</span>
+          <div className="step-title">
+            Dataset <span className="step-hint">— pick existing or import CSV</span>
+          </div>
         </div>
         <label className="field">
-          Choose
-          <select value={datasetId} onChange={(e) => setDatasetId(e.target.value)}>
+          <span className="field-label">Choose dataset</span>
+          <select value={datasetId} onChange={(e) => setDatasetId(e.target.value)} style={{ maxWidth: 420 }}>
             <option value="">— pick a dataset —</option>
             {(datasets.data?.datasets ?? []).map((d) => (
               <option key={d.id} value={d.id}>
@@ -152,24 +187,26 @@ export function Launcher({ presetVersionId, onDone }: Props) {
             ))}
           </select>
         </label>
-        {preview.isLoading && <p className="muted">Loading preview…</p>}
+
+        {preview.isLoading && <Loading text="Loading preview…" />}
         {preview.data && (
-          <div className="chart-card card" style={{ margin: "0.8rem 0 0" }}>
-            <div className="chart-title">
-              Preview (downsampled candles)
+          <div className="chart-panel glass" style={{ margin: "0.8rem 0 0" }}>
+            <div className="chart-head">
+              <div className="chart-name">Preview · downsampled candles</div>
             </div>
             <PriceChart bars={preview.data.bars} trades={[]} height={200} />
           </div>
         )}
-        <details style={{ marginTop: "0.8rem" }}>
+
+        <details style={{ marginTop: "0.9rem" }}>
           <summary>…or import CSV (open_time,open,high,low,close,volume)</summary>
           <div className="field-row">
             <label className="field">
-              Symbol
+              <span className="field-label">Symbol</span>
               <input value={csvSymbol} onChange={(e) => setCsvSymbol(e.target.value)} />
             </label>
             <label className="field">
-              Timeframe
+              <span className="field-label">Timeframe</span>
               <select value={csvTf} onChange={(e) => setCsvTf(e.target.value)}>
                 {["M5", "M15", "H1", "H4", "D1"].map((t) => (
                   <option key={t} value={t}>
@@ -179,7 +216,7 @@ export function Launcher({ presetVersionId, onDone }: Props) {
               </select>
             </label>
             <label className="field">
-              File
+              <span className="field-label">CSV file</span>
               <input
                 type="file"
                 accept=".csv"
@@ -191,66 +228,78 @@ export function Launcher({ presetVersionId, onDone }: Props) {
                 }}
               />
             </label>
-            <button className="btn ghost" disabled={!csvText || doImport.isPending} onClick={() => doImport.mutate()}>
-              Import
+            <button className="btn glass" disabled={!csvText || doImport.isPending} onClick={() => doImport.mutate()}>
+              {doImport.isPending ? "Importing…" : "Import"}
             </button>
           </div>
         </details>
       </div>
 
-      <div className="card step-card">
+      <div className="glass step-card">
         <div className="step-head">
-          <span className="step-num">3</span>
-          <h4 className="step-title">Assumptions <span className="step-hint">— stored with the run</span></h4>
+          <span className="step-badge">3</span>
+          <div className="step-title">
+            Assumptions <span className="step-hint">— stored with the run, never rewritten</span>
+          </div>
         </div>
         <div className="field-row">
           <label className="field">
-            Start date
+            <span className="field-label">Start date</span>
             <input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
           </label>
           <label className="field">
-            End date
+            <span className="field-label">End date</span>
             <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
           </label>
           <label className="field">
-            Initial capital
-            <input value={capital} onChange={(e) => setCapital(e.target.value)} />
+            <span className="field-label">Initial capital</span>
+            <input value={capital} onChange={(e) => setCapital(e.target.value)} style={{ maxWidth: 140 }} />
           </label>
           <label className="field">
-            Spread bps <span className="faint">(blank = preset)</span>
-            <input value={spread} onChange={(e) => setSpread(e.target.value)} />
+            <span className="field-label">Spread bps (blank = preset)</span>
+            <input value={spread} onChange={(e) => setSpread(e.target.value)} style={{ maxWidth: 140 }} />
           </label>
           <label className="field">
-            Slippage bps
-            <input value={slippage} onChange={(e) => setSlippage(e.target.value)} />
+            <span className="field-label">Slippage bps</span>
+            <input value={slippage} onChange={(e) => setSlippage(e.target.value)} style={{ maxWidth: 140 }} />
           </label>
         </div>
       </div>
 
-      {error && <ErrorNotice message={error} />}
-      <button className="btn primary" onClick={() => run.mutate()} disabled={run.isPending || !versionId || !datasetId}>
+      {error && <ErrorInline text={error} />}
+
+      <button className="btn primary lg" onClick={() => run.mutate()} disabled={run.isPending || !versionId || !datasetId}>
+        <IcPlay size={15} />
         {run.isPending ? "Starting…" : "Run backtest"}
       </button>
 
       {job && (
-        <div className="card" style={{ marginTop: "1.2rem", maxWidth: 560 }}>
-          <div className="job-line">
-            <Badge kind={STATES[job.state] ?? "neutral"}>{job.state}</Badge>
+        <div className="glass" style={{ marginTop: "1.2rem", maxWidth: 560 }}>
+          <div className="row-wrap" style={{ marginBottom: "0.5rem" }}>
+            <Badge kind={JOB_BADGE[job.state] ?? "neutral"}>{job.state}</Badge>
             <code>{job.id.slice(0, 8)}</code>
-            <span>
-              {barsDone} bars{job.progress?.barsProcessed != null && job.progress?.barTotal > 0 ? ` (${pct.toFixed(0)}%)` : ""}
-            </span>
+            {job.progress && job.progress.barTotal > 0 && (
+              <span className="muted" style={{ fontSize: "0.83rem" }}>
+                {job.progress.barsProcessed}/{job.progress.barTotal} bars · {pct.toFixed(0)}%
+              </span>
+            )}
           </div>
-          <div className="progress">
-            <i style={{ width: `${Math.min(pct, 100)}%` }} />
+          <div className="progress-track">
+            <div className={`progress-fill${job.progress && job.progress.barTotal > 0 ? "" : " indeterminate"}`} style={{ width: `${Math.min(pct, 100)}%` }} />
           </div>
           {job.error && (
-            <p className="error-text" style={{ marginBottom: 0, display: "flex", gap: "0.4rem", alignItems: "center" }}>
-              <IconAlert size={14} />
+            <p className="error-inline" style={{ marginTop: "0.5rem" }}>
+              <IcWarn size={14} />
               {job.error}
             </p>
           )}
         </div>
+      )}
+
+      {!versionId && (
+        <Banner kind="info">
+          Tip: open a strategy and hit “Backtest” to prefill the version id automatically.
+        </Banner>
       )}
     </div>
   );

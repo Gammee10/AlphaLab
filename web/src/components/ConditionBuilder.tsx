@@ -26,23 +26,18 @@ const OUTPUTS: Record<string, string[]> = {
   Donchian: ["upper", "lower", "middle"],
 };
 
-function OperandEditor({
-  op,
-  indicators,
-  onChange,
-}: {
-  op: Operand;
-  indicators: Indicator[];
-  onChange: (op: Operand) => void;
-}) {
+function OperandEditor({ op, indicators, onChange }: { op: Operand; indicators: Indicator[]; onChange: (op: Operand) => void }) {
   return (
-    <span className="row" style={{ display: "inline-flex" }}>
-      <select value={op.kind} onChange={(e) => {
-        const kind = e.target.value as Operand["kind"];
-        if (kind === "const") onChange({ kind, value: 0 });
-        else if (kind === "price") onChange({ kind, field: "close" });
-        else onChange({ kind, ref: indicators[0]?.id ?? "" });
-      }}>
+    <span className="row-wrap" style={{ display: "inline-flex", flexWrap: "wrap" }}>
+      <select
+        value={op.kind}
+        onChange={(e) => {
+          const kind = e.target.value as Operand["kind"];
+          if (kind === "const") onChange({ kind, value: 0 });
+          else if (kind === "price") onChange({ kind, field: "close" });
+          else onChange({ kind, ref: indicators[0]?.id ?? "" });
+        }}
+      >
         <option value="indicator">indicator</option>
         <option value="price">price</option>
         <option value="const">number</option>
@@ -78,7 +73,7 @@ function OperandEditor({
             title="offsetBars (0 = just-closed)"
             value={op.offsetBars ?? 0}
             onChange={(e) => onChange({ ...op, offsetBars: Number(e.target.value) })}
-            style={{ width: 70 }}
+            style={{ width: 74 }}
           />
         </>
       )}
@@ -98,12 +93,12 @@ function OperandEditor({
             title="offsetBars (0 = just-closed)"
             value={op.offsetBars ?? 0}
             onChange={(e) => onChange({ ...op, offsetBars: Number(e.target.value) })}
-            style={{ width: 70 }}
+            style={{ width: 74 }}
           />
         </>
       )}
       {op.kind === "const" && (
-        <input type="number" step="any" value={op.value ?? 0} onChange={(e) => onChange({ ...op, value: Number(e.target.value) })} style={{ width: 90 }} />
+        <input type="number" step="any" value={op.value ?? 0} onChange={(e) => onChange({ ...op, value: Number(e.target.value) })} style={{ width: 96 }} />
       )}
     </span>
   );
@@ -118,16 +113,16 @@ function NodeEditor({ node, indicators, onChange, onRemove }: {
   if (isGroup(node)) {
     return (
       <div className="cond-tree">
-        <span className="cond-group-label">
-          {node.group === "all" ? "ALL of" : "ANY of"}
-          <select value={node.group} onChange={(e) => onChange({ ...node, group: e.target.value as Group["group"] })} style={{ marginLeft: 8 }}>
+        <div className="cond-group-head">
+          <span className="cond-group-tag">{node.group === "all" ? "ALL of" : "ANY of"}</span>
+          <select value={node.group} onChange={(e) => onChange({ ...node, group: e.target.value as Group["group"] })}>
             <option value="all">ALL</option>
             <option value="any">ANY</option>
           </select>
-          <button className="mini-btn danger" onClick={onRemove} style={{ marginLeft: 8 }}>
+          <button className="mini-btn danger" onClick={onRemove}>
             remove group
           </button>
-        </span>
+        </div>
         {node.children.map((c) => (
           <NodeEditor
             key={c.id}
@@ -151,7 +146,7 @@ function NodeEditor({ node, indicators, onChange, onRemove }: {
         ))}
       </select>
       <OperandEditor op={node.right} indicators={indicators} onChange={(op) => onChange({ ...node, right: op })} />
-      <button className="mini-btn danger" onClick={onRemove}>
+      <button className="mini-btn danger" onClick={onRemove} aria-label="Remove condition">
         ✕
       </button>
     </div>
@@ -171,7 +166,7 @@ export function ConditionBuilder({
   const depth = maxDepth(nodes);
   return (
     <div>
-      <p className="muted">
+      <p className="muted" style={{ fontSize: "0.83rem", margin: "0.4rem 0 0.6rem" }}>
         {describeNode({ id: "top", group: "all", children: nodes })} · {leaves}/12 conditions · depth {depth}/3
       </p>
       {nodes.map((n) => (

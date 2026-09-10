@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AreaSeries,
   CandlestickSeries,
@@ -11,21 +11,45 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import type { Bar, Trade } from "./api";
+import { useUi } from "./store";
 
-const TEXT = "#98a1b3";
-const GRID = "rgba(33, 41, 56, 0.6)";
-const UP = "#34d399";
-const DOWN = "#f87171";
-const ACCENT = "#5b8cff";
+function palette(theme: "dark" | "light") {
+  return theme === "dark"
+    ? {
+        text: "#a7b0c6",
+        grid: "rgba(148, 163, 199, 0.09)",
+        up: "#4ade80",
+        down: "#fb7185",
+        accent: "#8b7cf6",
+        accentTop: "rgba(139, 124, 246, 0.38)",
+        accentBottom: "rgba(139, 124, 246, 0.02)",
+        ddTop: "rgba(251, 113, 133, 0.28)",
+        ddBottom: "rgba(251, 113, 133, 0.02)",
+        series: ["#4ade80", "#8b7cf6", "#fb7185", "#22d3ee", "#fbbf24"],
+      }
+    : {
+        text: "#4b5570",
+        grid: "rgba(15, 23, 42, 0.07)",
+        up: "#059669",
+        down: "#e11d48",
+        accent: "#6d5ae0",
+        accentTop: "rgba(109, 90, 224, 0.3)",
+        accentBottom: "rgba(109, 90, 224, 0.02)",
+        ddTop: "rgba(225, 29, 72, 0.22)",
+        ddBottom: "rgba(225, 29, 72, 0.02)",
+        series: ["#059669", "#6d5ae0", "#e11d48", "#0891b2", "#b45309"],
+      };
+}
 
-function useChart(ref: React.RefObject<HTMLDivElement>, height: number): React.MutableRefObject<IChartApi | null> {
+function useChart(ref: React.RefObject<HTMLDivElement | null>, height: number): React.MutableRefObject<IChartApi | null> {
   const chartRef = useRef<IChartApi | null>(null);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    const c = palette(document.documentElement.dataset.theme === "light" ? "light" : "dark");
     const chart = createChart(el, {
-      layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: TEXT },
-      grid: { vertLines: { color: GRID }, horzLines: { color: GRID } },
+      layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: c.text },
+      grid: { vertLines: { color: c.grid }, horzLines: { color: c.grid } },
       width: el.clientWidth || 640,
       height,
       timeScale: { timeVisible: true, secondsVisible: false },
@@ -51,18 +75,20 @@ function exitLabel(reason: string): string {
   return "×";
 }
 
-export function PriceChart({ bars, trades, height = 380 }: { bars: Bar[]; trades: Trade[]; height?: number }) {
+export function PriceChart({ bars, trades, height = 360 }: { bars: Bar[]; trades: Trade[]; height?: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const chartRef = useChart(ref, height);
+  const { theme } = useUi();
 
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart || bars.length === 0) return;
+    const c = palette(theme);
     const series: ISeriesApi<"Candlestick"> = chart.addSeries(CandlestickSeries, {
-      upColor: UP,
-      downColor: DOWN,
-      wickUpColor: UP,
-      wickDownColor: DOWN,
+      upColor: c.up,
+      downColor: c.down,
+      wickUpColor: c.up,
+      wickDownColor: c.down,
       borderVisible: false,
     });
     series.setData(
@@ -74,7 +100,7 @@ export function PriceChart({ bars, trades, height = 380 }: { bars: Bar[]; trades
         out.push({
           time: Math.floor(t.entryTime / 1000) as UTCTimestamp,
           position: t.direction === "long" ? ("belowBar" as const) : ("aboveBar" as const),
-          color: t.direction === "long" ? UP : DOWN,
+          color: t.direction === "long" ? c.up : c.down,
           shape: t.direction === "long" ? ("arrowUp" as const) : ("arrowDown" as const),
           text: t.direction === "long" ? "L" : "S",
         });
@@ -83,7 +109,7 @@ export function PriceChart({ bars, trades, height = 380 }: { bars: Bar[]; trades
         out.push({
           time: Math.floor(t.exitTime / 1000) as UTCTimestamp,
           position: t.direction === "long" ? ("aboveBar" as const) : ("belowBar" as const),
-          color: DOWN,
+          color: c.down,
           shape: t.direction === "long" ? ("arrowDown" as const) : ("arrowUp" as const),
           text: exitLabel(t.exitReason),
         });
@@ -95,65 +121,109 @@ export function PriceChart({ bars, trades, height = 380 }: { bars: Bar[]; trades
     return () => {
       chart.removeSeries(series);
     };
-  }, [chartRef, bars, trades]);
+  }, [chartRef, bars, trades, theme]);
 
-  if (bars.length === 0) return <p className="muted">No price data in range.</p>;
+  if (bars.length === 0) return <p className="muted" style={{ fontSize: "0.88rem" }}>No price data in range.</p>;
   return <div ref={ref} style={{ width: "100%" }} />;
 }
 
-export function EquityChart({ curve, height = 220 }: { curve: [number, string][]; height?: number }) {
+export function EquityChart({ curve, height = 240 }: { curve: [number, string][]; height?: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const chartRef = useChart(ref, height);
+  const { theme } = useUi();
 
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart || curve.length === 0) return;
+    const c = palette(theme);
     const data = curve.map(([t, e]) => ({ time: Math.floor(t / 1000) as UTCTimestamp, value: Number(e) }));
-    const area = chart.addSeries(AreaSeries, { lineColor: ACCENT, topColor: "rgba(91,140,255,0.35)", bottomColor: "rgba(91,140,255,0.02)" });
+    const area = chart.addSeries(AreaSeries, {
+      lineColor: c.accent,
+      topColor: c.accentTop,
+      bottomColor: c.accentBottom,
+      lineWidth: 2,
+    });
     area.setData(data);
-    // Drawdown pane (equity minus running peak) on an overlay scale.
     let peak = -Infinity;
     const dd = data.map((p) => {
       peak = Math.max(peak, p.value);
       return { time: p.time, value: p.value - peak };
     });
     const ddSeries = chart.addSeries(AreaSeries, {
-      lineColor: DOWN,
-      topColor: "rgba(248,113,113,0.25)",
-      bottomColor: "rgba(248,113,113,0.02)",
+      lineColor: c.down,
+      topColor: c.ddTop,
+      bottomColor: c.ddBottom,
       priceScaleId: "dd",
     });
-    chart.priceScale("dd").applyOptions({ scaleMargins: { top: 0.7, bottom: 0 } });
+    chart.priceScale("dd").applyOptions({ scaleMargins: { top: 0.72, bottom: 0 } });
     ddSeries.setData(dd);
     chart.timeScale().fitContent();
     return () => {
       chart.removeSeries(area);
       chart.removeSeries(ddSeries);
     };
-  }, [chartRef, curve]);
+  }, [chartRef, curve, theme]);
 
-  if (curve.length === 0) return <p className="muted">No equity data.</p>;
+  if (curve.length === 0) return <p className="muted" style={{ fontSize: "0.88rem" }}>No equity data.</p>;
   return <div ref={ref} style={{ width: "100%" }} />;
 }
 
-export function MultiEquity({ curves, height = 260 }: { curves: { label: string; points: { t: number; pct: number }[] }[]; height?: number }) {
+const ALL_SERIES_COLORS = palette("dark").series.concat(palette("light").series);
+
+export function MultiEquity({ curves, height = 280 }: { curves: { label: string; points: { t: number; pct: number }[] }[]; height?: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const chartRef = useChart(ref, height);
-  const colors = ["#34d399", "#5b8cff", "#f87171", "#a78bfa", "#fbbf24"];
+  const { theme } = useUi();
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const visible = curves.filter((c) => !hidden.has(c.label));
 
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
-    const series = curves.map((c, i) => {
-      const s = chart.addSeries(LineSeries, { color: colors[i % colors.length], title: c.label, lineWidth: 2 });
-      s.setData(c.points.map((p) => ({ time: Math.floor(p.t / 1000) as UTCTimestamp, value: p.pct })));
+    const c = palette(theme);
+    const series = visible.map((cv, i) => {
+      const s = chart.addSeries(LineSeries, {
+        color: c.series[i % c.series.length],
+        title: cv.label,
+        lineWidth: 2,
+      });
+      s.setData(cv.points.map((p) => ({ time: Math.floor(p.t / 1000) as UTCTimestamp, value: p.pct })));
       return s;
     });
     chart.timeScale().fitContent();
     return () => {
       series.forEach((s) => chart.removeSeries(s));
     };
-  }, [chartRef, curves]);
+  }, [chartRef, visible, theme]);
 
-  return <div ref={ref} style={{ width: "100%" }} />;
+  if (curves.length === 0) return <p className="muted" style={{ fontSize: "0.88rem" }}>No curves to compare.</p>;
+
+  return (
+    <div>
+      <div ref={ref} style={{ width: "100%" }} />
+      <div className="legend" style={{ marginTop: "0.55rem" }}>
+        {curves.map((cv, i) => {
+          const off = hidden.has(cv.label);
+          const color = ALL_SERIES_COLORS[i % ALL_SERIES_COLORS.length];
+          return (
+            <button
+              key={cv.label}
+              className={`legend-item${off ? " off" : ""}`}
+              onClick={() =>
+                setHidden((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(cv.label)) next.delete(cv.label);
+                  else next.add(cv.label);
+                  return next;
+                })
+              }
+            >
+              <span className="legend-dot" style={{ background: color }} />
+              <code>{cv.label}</code>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }

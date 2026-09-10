@@ -1,8 +1,20 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
+import { navigate } from "../router";
+import { errText, useUi } from "../store";
 import { ConditionBuilder } from "../components/ConditionBuilder";
-import { Badge, ErrorNotice, IconPlay, Loading, PageHead } from "../components/ui";
+import {
+  Badge,
+  Banner,
+  CopyChip,
+  ErrorInline,
+  Loading,
+  PageHead,
+  SectionLabel,
+  TabBar,
+} from "../components/ui";
+import { IcCode, IcLayers, IcList, IcPlay } from "../components/icons";
 import { countLeaves, describeNode, maxDepth, type Node } from "../conditions";
 import { shortHash } from "../format";
 
@@ -42,28 +54,43 @@ function fromSpec(spec: Record<string, unknown>): EditorState {
   };
 }
 
-export function StrategyDetail({ id, onBacktest }: { id: string; onBacktest: (versionId: string) => void }) {
-  const detail = useQuery({ queryKey: ["strategy", id], queryFn: () => api.strategy(id) });
-  const [tab, setTab] = useState<"rules" | "build" | "json">("rules");
+const TABS = [
+  { id: "rules", label: "Rules & versions", icon: <IcList size={14} /> },
+  { id: "build", label: "Visual editor", icon: <IcLayers size={14} /> },
+  { id: "json", label: "JSON editor", icon: <IcCode size={14} /> },
+];
+
+export function StrategyDetail({ id }: { id: string }) {
+  const detail = useQuery({ queryKey: ["strategy", id], queryFn: () => api.strategy(id), enabled: id !== "" });
+  const client = useQueryClient();
+  const { toast } = useUi();
+
+  const [tab, setTab] = useState("rules");
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
-  const client = useQueryClient();
 
   const save = useMutation({
     mutationFn: (spec: unknown) => api.createVersion(id, spec),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["strategy", id] });
+      client.invalidateQueries({ queryKey: ["strategies"] });
       setDraft("");
       setEditor(null);
       setError("");
       setTab("rules");
+      toast("New version saved — history preserved", "ok");
     },
-    onError: (e: Error & { code?: string }) => setError(`${e.code ?? "ERROR"}: ${e.message}`),
+    onError: (e: Error & { code?: string }) => {
+      setError(errText(e));
+      toast(errText(e), "error");
+    },
   });
 
+  if (id === "") return <ErrorInline text="No strategy id in the URL." />;
   if (detail.isLoading) return <Loading text="Loading strategy…" />;
-  if (detail.isError) return <ErrorNotice message="Failed to load strategy." />;
+  if (detail.isError) return <ErrorInline text="Failed to load strategy." />;
+
   const { strategy, versions } = detail.data!;
   const current = versions[versions.length - 1];
   const spec = current.spec as { indicators: { id: string; kind: string }[] } & Record<string, unknown>;
@@ -100,64 +127,63 @@ export function StrategyDetail({ id, onBacktest }: { id: string; onBacktest: (ve
           </>
         }
         sub="Immutable version history — every edit creates a new version, nothing is rewritten."
-      />
-      <div className="tabs">
-        {(["rules", "build", "json"] as const).map((t) => (
-          <button
-            key={t}
-            className={tab === t ? "active" : ""}
-            onClick={() => {
-              setTab(t);
-              setError("");
-            }}
-          >
-            {t === "rules" ? "Rules & versions" : t === "build" ? "Visual editor" : "JSON editor"}
+        actions={
+          <button className="btn primary" onClick={() => navigate(`/launcher/${current.id}`)}>
+            <IcPlay size={14} />
+            Backtest current
           </button>
-        ))}
-      </div>
+        }
+      />
+
+      <TabBar tabs={TABS} active={tab} onChange={(t) => { setTab(t); setError(""); }} />
 
       {tab === "rules" && (
         <>
-          <div className="card">
-            <div style={{ display: "flex", alignItems: "center", gap: "0.7rem", flexWrap: "wrap", marginBottom: "0.7rem" }}>
-              <Badge kind="accent">v{current.versionNumber}</Badge>
-              <code>{shortHash(current.specHash)}</code>
+          <SectionLabel>Current version</SectionLabel>
+          <div className="glass">
+            <div className="row-wrap" style={{ marginBottom: "0.6rem" }}>
+              <Badge kind="acc">v{current.versionNumber}</Badge>
+              <CopyChip text={current.specHash} label={shortHash(current.specHash)} />
+              <span className="faint" style={{ fontSize: "0.8rem" }}>spec hash</span>
             </div>
-            {(current.spec.entry as { conditions: Node[]; direction: string }).conditions.map((c) => (
-              <div key={c.id} className="rule-line">
-                {describeNode(c)}
-              </div>
-            ))}
-            <div style={{ marginTop: "1rem" }}>
-              <button className="btn primary" onClick={() => onBacktest(current.id)}>
-                <IconPlay size={14} />
-                Backtest this version
-              </button>
+            <div>
+              {(current.spec.entry as { conditions: Node[] }).conditions.map((c) => (
+                <span key={c.id} className="rule-chip">
+                  {describeNode(c)}
+                </span>
+              ))}
             </div>
           </div>
-          <h3 className="section-title">Version history (immutable)</h3>
-          <ol className="versions">
-            {versions.map((v) => (
-              <li key={v.id} className={`version-row${v.id === current.id ? " current" : ""}`}>
-                <span className="v-num">v{v.versionNumber}</span>
-                <code>{shortHash(v.specHash)}</code>
-                {v.id === current.id && <Badge kind="ok">current</Badge>}
-                <span className="spacer" />
-                <button className="btn ghost sm" onClick={() => onBacktest(v.id)}>
-                  Backtest
-                </button>
-              </li>
-            ))}
-          </ol>
+
+          <SectionLabel>Version timeline</SectionLabel>
+          <div className="glass">
+            <ol className="timeline">
+              {versions.map((v) => (
+                <li key={v.id} className={`timeline-row${v.id === current.id ? " current" : ""}`}>
+                  <span className="timeline-dot" />
+                  <span className="mono" style={{ fontWeight: 700 }}>v{v.versionNumber}</span>
+                  <code>{shortHash(v.specHash)}</code>
+                  {v.id === current.id && <Badge kind="ok">current</Badge>}
+                  <span className="grow" />
+                  <button className="btn glass sm" onClick={() => navigate(`/launcher/${v.id}`)}>
+                    <IcPlay size={12} />
+                    Backtest
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </div>
         </>
       )}
 
       {tab === "build" && (
-        <div className="card" style={{ maxWidth: 780 }}>
-          <h4 className="card-title">Entry conditions (new version, history preserved)</h4>
+        <div className="glass" style={{ maxWidth: 820 }}>
+          <h4 className="glass-title" style={{ marginBottom: "0.6rem" }}>
+            Entry conditions <span className="step-hint">— saving creates a new version</span>
+          </h4>
           <div className="field-row">
             <label className="field">
-              Direction
+              <span className="field-label">Direction</span>
               <select value={ed.direction} onChange={(e) => setEditor({ ...ed, direction: e.target.value })}>
                 <option value="long">long</option>
                 <option value="short">short</option>
@@ -165,7 +191,7 @@ export function StrategyDetail({ id, onBacktest }: { id: string; onBacktest: (ve
               </select>
             </label>
             <label className="field">
-              Logic
+              <span className="field-label">Logic</span>
               <select value={ed.logic} onChange={(e) => setEditor({ ...ed, logic: e.target.value as "all" | "any" })}>
                 <option value="all">ALL (AND)</option>
                 <option value="any">ANY (OR)</option>
@@ -173,25 +199,26 @@ export function StrategyDetail({ id, onBacktest }: { id: string; onBacktest: (ve
             </label>
           </div>
           <ConditionBuilder nodes={ed.conditions} indicators={spec.indicators} onChange={(conditions) => setEditor({ ...ed, conditions })} />
-          <hr className="divider" />
-          <h4 className="card-title">Risk &amp; exits</h4>
+
+          <hr />
+          <h4 className="glass-title" style={{ margin: "0.8rem 0 0.4rem" }}>Risk &amp; exits</h4>
           <div className="field-row">
             <label className="field">
-              Stop (ATR ×)
+              <span className="field-label">Stop (ATR ×)</span>
               <input type="number" step="any" value={ed.stopMult} onChange={(e) => setEditor({ ...ed, stopMult: Number(e.target.value) })} />
             </label>
             <label className="field">
-              Target (R, blank = none)
+              <span className="field-label">Target (R, blank = none)</span>
               <input
                 type="number"
                 step="any"
-                value={ed.takeProfitRatio ?? ""}
                 placeholder="none"
+                value={ed.takeProfitRatio ?? ""}
                 onChange={(e) => setEditor({ ...ed, takeProfitRatio: e.target.value === "" ? null : Number(e.target.value) })}
               />
             </label>
             <label className="field">
-              Risk %
+              <span className="field-label">Risk %</span>
               <input type="number" step="any" value={ed.riskPct} onChange={(e) => setEditor({ ...ed, riskPct: Number(e.target.value) })} />
             </label>
           </div>
@@ -203,11 +230,11 @@ export function StrategyDetail({ id, onBacktest }: { id: string; onBacktest: (ve
             {ed.sessionOn && (
               <>
                 <label className="field">
-                  Start hour
+                  <span className="field-label">Start hour</span>
                   <input type="number" value={ed.sessionStart} onChange={(e) => setEditor({ ...ed, sessionStart: Number(e.target.value) })} />
                 </label>
                 <label className="field">
-                  End hour
+                  <span className="field-label">End hour</span>
                   <input type="number" value={ed.sessionEnd} onChange={(e) => setEditor({ ...ed, sessionEnd: Number(e.target.value) })} />
                 </label>
               </>
@@ -217,33 +244,39 @@ export function StrategyDetail({ id, onBacktest }: { id: string; onBacktest: (ve
               Exit on opposite signal
             </label>
           </div>
-          {!validTree && <p className="error-text">Tree needs 1–12 conditions, depth ≤ 3 (now {leaves}, depth {depth}).</p>}
-          {error && <ErrorNotice message={error} />}
-          <button className="btn primary" disabled={!validTree || save.isPending} onClick={() => { setError(""); save.mutate(buildSpec()); }}>
-            Save as new version
-          </button>
+
+          {!validTree && <ErrorInline text={`Tree needs 1–12 conditions, depth ≤ 3 (now ${leaves} leaves, depth ${depth}).`} />}
+          {error && <ErrorInline text={error} />}
+          <div style={{ marginTop: "0.9rem" }}>
+            <button className="btn primary" disabled={!validTree || save.isPending} onClick={() => { setError(""); save.mutate(buildSpec()); }}>
+              {save.isPending ? "Saving…" : "Save as new version"}
+            </button>
+          </div>
         </div>
       )}
 
       {tab === "json" && (
-        <div className="card" style={{ maxWidth: 780 }}>
-          <h4 className="card-title">Advanced: full spec JSON (server-validated)</h4>
-          <textarea rows={12} placeholder="Paste the full edited spec…" value={draft} onChange={(e) => setDraft(e.target.value)} />
-          {error && <ErrorNotice message={error} />}
-          <div style={{ marginTop: "0.7rem" }}>
+        <div className="glass" style={{ maxWidth: 820 }}>
+          <Banner kind="info">
+            Paste the full edited spec JSON. The server validates it against the canonical schema before creating a version.
+          </Banner>
+          <textarea rows={12} placeholder="{ …full spec json… }" value={draft} onChange={(e) => setDraft(e.target.value)} />
+          {error && <ErrorInline text={error} />}
+          <div style={{ marginTop: "0.8rem" }}>
             <button
               className="btn primary"
+              disabled={!draft || save.isPending}
               onClick={() => {
                 setError("");
                 try {
                   save.mutate(JSON.parse(draft));
                 } catch {
-                  setError("Invalid JSON");
+                  setError("Invalid JSON — fix the syntax and try again.");
+                  toast("Invalid JSON", "error");
                 }
               }}
-              disabled={!draft || save.isPending}
             >
-              Save as new version
+              {save.isPending ? "Saving…" : "Save as new version"}
             </button>
           </div>
         </div>

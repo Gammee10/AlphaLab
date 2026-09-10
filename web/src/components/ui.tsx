@@ -1,191 +1,241 @@
-// Shared presentational primitives for the redesign. Rendering only — no
-// financial logic lives here (AGENTS.md boundary).
+// Reusable presentational primitives. Rendering only — no financial logic.
 
-import type { CSSProperties, ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type CSSProperties,
+} from "react";
+import { IcCheck, IcInbox, IcInfo, IcWarn, IcX } from "./icons";
+import { useUi } from "../store";
 
-export function IconChart({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="12" width="4" height="9" rx="1" />
-      <rect x="10" y="6" width="4" height="15" rx="1" />
-      <rect x="17" y="10" width="4" height="11" rx="1" />
-    </svg>
-  );
-}
-
-export function IconLayers({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3 2 8.5 12 14l10-5.5L12 3z" />
-      <path d="m2 14 10 5.5L22 14" />
-    </svg>
-  );
-}
-
-export function IconPlay({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="m6 4 14 8-14 8V4z" />
-    </svg>
-  );
-}
-
-export function IconCompare({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 3h4v4" />
-      <path d="M21 3l-7 7" />
-      <path d="M7 21H3v-4" />
-      <path d="M3 21l7-7" />
-    </svg>
-  );
-}
-
-export function IconSpark({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 3v3m0 12v3m-9-9h3m12 0h3m-4.6-6.4-2.1 2.1m-4.6 4.6-2.1 2.1m11.3 0-2.1-2.1m-4.6-4.6-2.1-2.1" />
-      <circle cx="12" cy="12" r="2.2" />
-    </svg>
-  );
-}
-
-export function IconTrend({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 17l6-6 4 4 8-8" />
-      <path d="M15 7h6v6" />
-    </svg>
-  );
-}
-
-export function IconCoin({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7v10M15.5 9.5c0-1.2-1.6-2-3.5-2s-3.5.8-3.5 2 1 1.8 3.5 2.3 3.5 1.1 3.5 2.2-1.6 2-3.5 2-3.5-.8-3.5-2" />
-    </svg>
-  );
-}
-
-export function IconDatabase({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <ellipse cx="12" cy="5" rx="8" ry="3" />
-      <path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
-      <path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" />
-    </svg>
-  );
-}
-
-export function IconAlert({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 9v4m0 4h.01" />
-      <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
-    </svg>
-  );
-}
-
-export function IconInfo({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 16v-4m0-4h.01" />
-    </svg>
-  );
-}
-
-export function IconInbox({ size = 20 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 12h-6l-2 3h-4l-2-3H2" />
-      <path d="M5.4 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.4-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.8 1.1z" />
-    </svg>
-  );
-}
-
-export function Badge({ kind, children }: { kind: "ok" | "bad" | "accent" | "neutral"; children: ReactNode }) {
-  const cls = kind === "neutral" ? "badge" : `badge ${kind}`;
+/* ---------- Badges ---------- */
+export function Badge({ kind, children }: { kind: "ok" | "bad" | "acc" | "warn" | "info" | "neutral"; children: ReactNode }) {
+  const cls = kind === "neutral" ? "badge" : `badge b-${kind}`;
   return <span className={cls}>{children}</span>;
 }
 
-export function DirBadge({ direction }: { direction: string }) {
-  return <span className={`dir-badge ${direction === "long" ? "long" : "short"}`}>{direction.toUpperCase()}</span>;
+export function SidePill({ direction }: { direction: string }) {
+  return <span className={`side-pill ${direction === "long" ? "long" : "short"}`}>{direction.toUpperCase()}</span>;
+}
+
+/* ---------- States ---------- */
+export function Spinner({ size = 15 }: { size?: number }) {
+  return <span className="spinner" style={{ width: size, height: size, border: "2px solid var(--border-strong)", borderTopColor: "var(--accent)", borderRadius: "50%", display: "inline-block", animation: "spin 0.8s linear infinite" }} />;
 }
 
 export function Loading({ text = "Loading…" }: { text?: string }) {
   return (
-    <div className="loading">
-      <span className="spinner" />
+    <div className="row-wrap" style={{ padding: "1rem 0", color: "var(--text-2)" }}>
+      <Spinner />
       {text}
     </div>
   );
 }
 
+export function Skeleton({ h, w }: { h?: number | string; w?: number | string }) {
+  return <div className="skeleton" style={{ height: h ?? 14, width: w ?? "100%" }} />;
+}
+
 export function EmptyState({ title, children, action }: { title: string; children?: ReactNode; action?: ReactNode }) {
   return (
     <div className="empty">
-      <IconInbox size={28} />
+      <div className="empty-icon">
+        <IcInbox size={30} />
+      </div>
       <h3>{title}</h3>
       {children && <p>{children}</p>}
-      {action}
+      {action && <div style={{ marginTop: "0.8rem" }}>{action}</div>}
     </div>
   );
 }
 
-export function ErrorNotice({ message }: { message: string }) {
+export function ErrorInline({ text }: { text: string }) {
   return (
-    <p className="banner danger">
-      <IconAlert size={16} />
-      <span>{message}</span>
+    <p className="error-inline">
+      <IcWarn size={15} />
+      {text}
     </p>
   );
 }
 
-export function StatCard({
+/* ---------- Page header ---------- */
+export function PageHead({ title, sub, actions }: { title: ReactNode; sub?: string; actions?: ReactNode }) {
+  return (
+    <div className="page-head">
+      <div className="grow" style={{ minWidth: 0 }}>
+        <h2 className="page-title">{title}</h2>
+        {sub && <p className="page-sub">{sub}</p>}
+      </div>
+      {actions && <div className="page-actions">{actions}</div>}
+    </div>
+  );
+}
+
+export function SectionLabel({ children, right }: { children: ReactNode; right?: ReactNode }) {
+  return (
+    <div className="section-label">
+      {children}
+      {right && <span style={{ textTransform: "none", letterSpacing: 0 }}>{right}</span>}
+    </div>
+  );
+}
+
+/* ---------- Banner ---------- */
+export function Banner({ kind, children }: { kind: "warn" | "info" | "danger"; children: ReactNode }) {
+  const icon = kind === "warn" ? <IcWarn size={15} /> : kind === "danger" ? <IcWarn size={15} /> : <IcInfo size={15} />;
+  return (
+    <div className={`banner ${kind}`}>
+      {icon}
+      <div className="banner-body">{children}</div>
+    </div>
+  );
+}
+
+/* ---------- Metric card ---------- */
+export function MetricCard({
   label,
   value,
-  sub,
-  ico,
-  tone = "neutral",
+  note,
+  large,
+  tone,
+  className,
+  style,
 }: {
   label: string;
   value: string;
-  sub?: string;
-  ico: ReactNode;
-  tone?: "neutral" | "up" | "down";
+  note?: string;
+  large?: boolean;
+  tone?: "up" | "down" | null;
+  className?: string;
+  style?: CSSProperties;
 }) {
   return (
-    <div className="card stat-card">
-      <div className={`stat-ico ${tone}`}>{ico}</div>
-      <div>
-        <div className="stat-label">{label}</div>
-        <div className="stat-value">{value}</div>
-        {sub && <div className="stat-sub">{sub}</div>}
-      </div>
-    </div>
-  );
-}
-
-export function MetricCard({ label, value, note, large, className, style }: { label: string; value: string; note?: string; large?: boolean; className?: string; style?: CSSProperties }) {
-  return (
-    <div className={`card metric${className ? ` ${className}` : ""}`} style={style}>
-      <div className="metric-label">
+    <div className={`glass metric-card${className ? ` ${className}` : ""}`} style={style}>
+      <div className="metric-head">
         {label}
         {note && <small>· {note}</small>}
       </div>
-      <div className={`metric-value${large ? " lg" : ""}`}>{value}</div>
+      <div className={`metric-value${large ? " lg" : ""}${tone ? ` num-${tone}` : ""}`}>{value}</div>
     </div>
   );
 }
 
-export function PageHead({ title, sub, children }: { title: ReactNode; sub?: string; children?: ReactNode }) {
+/* ---------- Tabs ---------- */
+export interface TabDef {
+  id: string;
+  label: string;
+  icon?: ReactNode;
+}
+export function TabBar({ tabs, active, onChange }: { tabs: TabDef[]; active: string; onChange: (id: string) => void }) {
   return (
-    <div className="page">
-      <h2 className="page-title">{title}</h2>
-      {sub && <p className="page-sub">{sub}</p>}
-      {children && <div className="page-actions">{children}</div>}
+    <div className="tabbar" role="tablist">
+      {tabs.map((t) => (
+        <button key={t.id} role="tab" aria-selected={active === t.id} className={active === t.id ? "active" : ""} onClick={() => onChange(t.id)}>
+          {t.icon}
+          {t.label}
+        </button>
+      ))}
     </div>
   );
+}
+
+/* ---------- Modal ---------- */
+export function Modal({
+  title,
+  onClose,
+  children,
+  footer,
+  wide,
+}: {
+  title: ReactNode;
+  onClose: () => void;
+  children: ReactNode;
+  footer?: ReactNode;
+  wide?: boolean;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="modal-scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className={`modal-box${wide ? " wide" : ""}`}>
+        <div className="modal-head">
+          <h3>{title}</h3>
+          <button className="x" onClick={onClose} aria-label="Close">
+            <IcX size={15} />
+          </button>
+        </div>
+        <div className="modal-body">{children}</div>
+        {footer && <div className="modal-foot">{footer}</div>}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Toasts ---------- */
+export function Toaster() {
+  const { toasts, dismissToast } = useUi();
+  if (toasts.length === 0) return null;
+  return (
+    <div className="toast-host">
+      {toasts.map((t) => (
+        <div key={t.id} className={`toast ${t.kind}`}>
+          {t.kind === "ok" ? <IcCheck size={15} /> : t.kind === "error" ? <IcWarn size={15} /> : <IcInfo size={15} />}
+          <span>{t.text}</span>
+          <button className="close" onClick={() => dismissToast(t.id)} aria-label="Dismiss">
+            <IcX size={13} />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ---------- Copy-to-clipboard chip ---------- */
+export function CopyChip({ text, label }: { text: string; label?: string }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button
+      className="mono"
+      title="Copy to clipboard"
+      onClick={() => {
+        navigator.clipboard?.writeText(text).catch(() => undefined);
+        setDone(true);
+        window.setTimeout(() => setDone(false), 1200);
+      }}
+      style={{
+        background: "var(--inset)",
+        border: "1px solid var(--border)",
+        borderRadius: 6,
+        padding: "1px 7px",
+        fontSize: "0.84em",
+        color: done ? "var(--up)" : "var(--accent-2)",
+        cursor: "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+      }}
+    >
+      {label ?? text}
+      {done ? <IcCheck size={11} /> : null}
+    </button>
+  );
+}
+
+/* ---------- Debounced input value hook ---------- */
+export function useDebounced<T>(value: T, ms: number): T {
+  const [v, setV] = useState(value);
+  const t = useRef<number>(0);
+  useEffect(() => {
+    window.clearTimeout(t.current);
+    t.current = window.setTimeout(() => setV(value), ms);
+    return () => window.clearTimeout(t.current);
+  }, [value, ms]);
+  return v;
 }

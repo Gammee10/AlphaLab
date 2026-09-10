@@ -1,19 +1,15 @@
-export function MonthlyHeatmap({ buckets, label }: { buckets: { period: string; netPnl: string; trades: number }[]; label: string }) {
-  if (buckets.length === 0) return null;
+export function MonthlyHeatmap({ buckets }: { buckets: { period: string; netPnl: string; trades: number }[] }) {
+  if (buckets.length === 0) return <p className="muted" style={{ fontSize: "0.88rem" }}>No monthly data.</p>;
   return (
-    <div className="chart-card card">
-      <div className="chart-title">
-        <span>{label}</span>
-        <span className="faint">{buckets.length} months</span>
-      </div>
-      <div className="heatmap">
+    <div className="glass">
+      <div className="heat-grid">
         {buckets.map((b) => {
           const v = Number(b.netPnl);
-          const cls = v > 0 ? "heat-up" : v < 0 ? "heat-down" : "heat-flat";
+          const cls = v > 0 ? "heat-up" : v < 0 ? "heat-down" : "";
           return (
-            <div key={b.period} className={`heat-cell ${cls}`}>
+            <div key={b.period} className={`heat-cell${cls ? ` ${cls}` : ""}`}>
               <small>{b.period}</small>
-              <span className="p">
+              <span className="hp">
                 {v > 0 ? "+" : ""}
                 {v.toFixed(0)}
               </span>

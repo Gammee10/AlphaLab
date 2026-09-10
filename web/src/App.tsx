@@ -1,7 +1,11 @@
-import { useState } from "react";
-import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "./api";
-import { IconChart, IconCompare, IconLayers, IconPlay, IconSpark } from "./components/ui";
+import { navigate, useRoute } from "./router";
+import { UiProvider, useUi } from "./store";
+import { IcLayers, IcMoon, IcPanel, IcPlay, IcPulse, IcSpark, IcSun, IcSwap } from "./components/icons";
+import { Toaster } from "./components/ui";
+import { CommandPalette } from "./shell/CommandPalette";
 import { AiPanel } from "./views/AiPanel";
 import { Compare } from "./views/Compare";
 import { Dashboard } from "./views/Dashboard";
@@ -10,39 +14,22 @@ import { RunView } from "./views/RunView";
 import { Strategies } from "./views/Strategies";
 import { StrategyDetail } from "./views/StrategyDetail";
 
-const client = new QueryClient();
+interface NavEntry {
+  path: string;
+  label: string;
+  icon: (props: { size?: number }) => React.ReactElement;
+  match: (segments: string[]) => boolean;
+}
 
-type View =
-  | { name: "dashboard" }
-  | { name: "strategies" }
-  | { name: "strategy"; id: string }
-  | { name: "launcher"; versionId: string | null }
-  | { name: "run"; id: string }
-  | { name: "compare"; seed: string | null }
-  | { name: "ai"; versionId: string | null; runIds: string[] };
-
-const GROUPS: { label: string; items: { name: View["name"]; label: string; ico: (props: { size?: number }) => JSX.Element }[] }[] = [
-  {
-    label: "Research",
-    items: [
-      { name: "dashboard", label: "Desk", ico: IconChart },
-      { name: "strategies", label: "Strategies", ico: IconLayers },
-    ],
-  },
-  {
-    label: "Work",
-    items: [
-      { name: "launcher", label: "Backtest", ico: IconPlay },
-      { name: "compare", label: "Compare", ico: IconCompare },
-    ],
-  },
-  {
-    label: "Assist",
-    items: [{ name: "ai", label: "AI copilot", ico: IconSpark }],
-  },
+const NAV: NavEntry[] = [
+  { path: "/", label: "Dashboard", icon: IcPulse, match: (s) => s.length === 0 },
+  { path: "/strategies", label: "Strategies", icon: IcLayers, match: (s) => s[0] === "strategies" || s[0] === "strategy" },
+  { path: "/launcher", label: "Backtest", icon: IcPlay, match: (s) => s[0] === "launcher" },
+  { path: "/compare", label: "Compare", icon: IcSwap, match: (s) => s[0] === "compare" },
+  { path: "/ai", label: "AI Copilot", icon: IcSpark, match: (s) => s[0] === "ai" },
 ];
 
-function Status() {
+function StatusDot() {
   const health = useQuery({
     queryKey: ["health"],
     queryFn: () => fetch("/api/health").then((r) => r.json()),
@@ -51,70 +38,202 @@ function Status() {
   const ai = useQuery({ queryKey: ["ai-status"], queryFn: api.aiStatus, refetchInterval: 60000 });
   const ok = health.data?.ok === true;
   return (
-    <div className="sidebar-footer">
-      <div className="status-row">
-        <span className={`status-dot ${ok ? "ok" : "off"}`} />
-        API {ok ? "connected" : "down"}
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+      <div className="row-wrap" style={{ fontSize: "0.76rem", color: "var(--text-2)" }}>
+        <span
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            flexShrink: 0,
+            background: ok ? "var(--up)" : "var(--down)",
+            boxShadow: `0 0 7px ${ok ? "var(--up)" : "var(--down)"}`,
+          }}
+        />
+        <span className="rail-text" style={{ opacity: undefined }}>
+          API {ok ? "connected" : "down"}
+        </span>
       </div>
-      <div className="status-row">
-        <span className="status-dot off" style={{ background: "transparent", boxShadow: "none" }} />
-        AI: {ai.data ? (ai.data.keyConfigured ? `gemini (${ai.data.provider})` : "ruled · offline") : "…"}
+      <div className="row-wrap" style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>
+        <span style={{ width: 8, flexShrink: 0 }} />
+        <span className="rail-text">
+          {ai.data ? (ai.data.keyConfigured ? `gemini (${ai.data.provider})` : "ruled · offline") : "…"}
+        </span>
       </div>
     </div>
   );
 }
 
-export function App() {
-  const [view, setView] = useState<View>({ name: "dashboard" });
-  const go = (v: View) => setView(v);
-  const isActive = (name: View["name"]) =>
-    view.name === name || (name === "strategies" && view.name === "strategy");
+function Rail() {
+  const { segments } = useRoute();
+  const { railExpanded, toggleRail } = useUi();
   return (
-    <QueryClientProvider client={client}>
-      <div className="shell">
-        <nav className="sidebar">
-          <div className="brand">
-            <div className="brand-mark">
-              <IconChart size={18} />
-            </div>
-            <div className="brand-name">
-              Alpha<em>Lab</em>
-            </div>
-          </div>
-          {GROUPS.map((g) => (
-            <div key={g.label}>
-              <div className="nav-label">{g.label}</div>
-              {g.items.map((n) => (
-                <button
-                  key={n.name}
-                  className={isActive(n.name) ? "nav-item active" : "nav-item"}
-                  onClick={() => {
-                    if (n.name === "launcher") go({ name: "launcher", versionId: null });
-                    else if (n.name === "compare") go({ name: "compare", seed: null });
-                    else if (n.name === "ai") go({ name: "ai", versionId: null, runIds: [] });
-                    else go({ name: n.name } as View);
-                  }}
-                >
-                  <n.ico size={16} />
-                  {n.label}
-                </button>
-              ))}
-            </div>
-          ))}
-          <Status />
-        </nav>
-        <main className="content view-fade" key={view.name + (view.name === "run" ? view.id : "")}>
-          {view.name === "dashboard" && <Dashboard go={(v) => v.name === "run" && v.id && go({ name: "run", id: v.id })} />}
-          {view.name === "strategies" && <Strategies onOpen={(id) => go({ name: "strategy", id })} />}
-          {view.name === "strategy" && (
-            <StrategyDetail id={view.id} onBacktest={(versionId) => go({ name: "launcher", versionId })} />
-          )}
-          {view.name === "launcher" && <Launcher presetVersionId={view.versionId} onDone={(id) => go({ name: "run", id })} />}
-          {view.name === "run" && <RunView id={view.id} onCompare={(runId) => go({ name: "compare", seed: runId })} />}
-          {view.name === "compare" && <Compare seedRunId={view.seed} onOpenRun={(id) => go({ name: "run", id })} />}
-          {view.name === "ai" && <AiPanel versionId={view.versionId} runIds={view.runIds} />}
-        </main>
+    <nav className={`rail${railExpanded ? " expanded" : ""}`}>
+      <button className="logo" onClick={toggleRail} title={railExpanded ? "Collapse sidebar" : "Expand sidebar"}>
+        <IcPulse size={20} />
+        <span className="logo-text">
+          <b style={{ color: "#fff", fontWeight: 800 }}>AlphaLab</b>
+        </span>
+      </button>
+      <div className="rail-divider" />
+      {NAV.map((n) => (
+        <button key={n.path} className={n.match(segments) ? "rail-item active" : "rail-item"} onClick={() => navigate(n.path)} title={n.label}>
+          <n.icon size={17} />
+          <span className="rail-text">{n.label}</span>
+        </button>
+      ))}
+      <div className="rail-spacer" />
+      <StatusDot />
+    </nav>
+  );
+}
+
+function Topbar() {
+  const { segments } = useRoute();
+  const { theme, toggleTheme, setPaletteOpen, railExpanded } = useUi();
+
+  const crumbs: { label: string; path?: string }[] = [];
+  if (segments.length === 0) {
+    crumbs.push({ label: "Dashboard" });
+  } else {
+    const map: Record<string, string> = {
+      strategies: "Strategies",
+      strategy: "Strategies",
+      launcher: "Backtest",
+      compare: "Compare",
+      ai: "AI Copilot",
+      run: "Runs",
+    };
+    const head = map[segments[0]] ?? segments[0];
+    crumbs.push({ label: head, path: segments[0] === "strategy" ? "/strategies" : segments[0] === "run" ? "/" : `/${segments[0]}` });
+    if (segments.length > 1) crumbs.push({ label: "Detail" });
+  }
+
+  return (
+    <header className="topbar">
+      <div className="crumb">
+        {crumbs.map((c, i) => (
+          <span key={i} className="row-wrap" style={{ gap: "0.5rem" }}>
+            {i > 0 && <span className="sep">/</span>}
+            {c.path ? (
+              <a
+                href={`#${c.path}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate(c.path!);
+                }}
+              >
+                <strong>{c.label}</strong>
+              </a>
+            ) : (
+              <strong>{c.label}</strong>
+            )}
+          </span>
+        ))}
       </div>
-    </QueryClientProvider>
+      <div className="topbar-actions">
+        {!railExpanded && (
+          <button className="palette-trigger" onClick={() => setPaletteOpen(true)}>
+            <IcPanel size={14} />
+            <span className="hint-kbd">Search…</span>
+            <kbd>⌘K</kbd>
+          </button>
+        )}
+        <button className="btn glass sm" onClick={toggleTheme} title="Toggle theme">
+          {theme === "dark" ? <IcSun size={15} /> : <IcMoon size={15} />}
+        </button>
+      </div>
+    </header>
+  );
+}
+
+function Router() {
+  const { segments } = useRoute();
+  const [head, ...rest] = segments;
+
+  let view: React.ReactNode;
+  switch (head) {
+    case undefined:
+      view = <Dashboard />;
+      break;
+    case "strategies":
+      view = <Strategies />;
+      break;
+    case "strategy":
+      view = <StrategyDetail id={rest[0] ?? ""} />;
+      break;
+    case "launcher":
+      view = <Launcher presetVersionId={rest[0] ?? null} />;
+      break;
+    case "run":
+      view = <RunView id={rest[0] ?? ""} />;
+      break;
+    case "compare":
+      view = <Compare seedRunId={rest[0] ?? null} />;
+      break;
+    case "ai":
+      view = <AiPanel presetVersionId={rest[0] ?? null} />;
+      break;
+    default:
+      view = (
+        <div className="glass">
+          <h3>Page not found</h3>
+          <p className="muted">
+            Unknown route <code>{`/${segments.join("/")}`}</code> —{" "}
+            <a
+              href="#/"
+              onClick={(e) => {
+                e.preventDefault();
+                navigate("/");
+              }}
+            >
+              back to dashboard
+            </a>
+          </p>
+        </div>
+      );
+  }
+
+  useEffect(() => {
+    const titles: Record<string, string> = {
+      "": "Dashboard",
+      strategies: "Strategies",
+      strategy: "Strategy",
+      launcher: "Backtest",
+      run: "Run",
+      compare: "Compare",
+      ai: "AI Copilot",
+    };
+    document.title = `${titles[head ?? ""] ?? "AlphaLab"} — AlphaLab`;
+  }, [head]);
+
+  return (
+    <div className="view-enter" key={`${head ?? ""}-${rest.join("-")}`}>
+      {view}
+    </div>
+  );
+}
+
+function Shell() {
+  return (
+    <div className="shell">
+      <Rail />
+      <div className="main">
+        <Topbar />
+        <div className="content">
+          <Router />
+        </div>
+      </div>
+      <CommandPalette />
+      <Toaster />
+    </div>
+  );
+}
+
+export function App() {
+  return (
+    <UiProvider>
+      <Shell />
+    </UiProvider>
   );
 }
