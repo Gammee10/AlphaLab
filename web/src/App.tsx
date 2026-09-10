@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { api } from "./api";
 import { navigate, useRoute } from "./router";
 import { UiProvider, useUi } from "./store";
@@ -28,6 +28,8 @@ const NAV: NavEntry[] = [
   { path: "/compare", label: "Compare", icon: IcSwap, match: (s) => s[0] === "compare" },
   { path: "/ai", label: "AI Copilot", icon: IcSpark, match: (s) => s[0] === "ai" },
 ];
+
+const client = new QueryClient();
 
 function StatusDot() {
   const health = useQuery({
@@ -233,7 +235,9 @@ function Shell() {
 export function App() {
   return (
     <UiProvider>
-      <Shell />
+      <QueryClientProvider client={client}>
+        <Shell />
+      </QueryClientProvider>
     </UiProvider>
   );
 }
