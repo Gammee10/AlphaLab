@@ -11,7 +11,7 @@ import {
   PageHead,
   SectionLabel,
 } from "../components/ui";
-import { IcPlay, IcPlus, IcSearch } from "../components/icons";
+import { IcLayers, IcPlay, IcPlus, IcSearch } from "../components/icons";
 
 function ParamInput({ field, value, onChange }: { field: ParamField; value: unknown; onChange: (v: unknown) => void }) {
   if (field.enum) {
@@ -148,10 +148,16 @@ export function Strategies() {
         </form>
       )}
 
-      <SectionLabel right={strategies.data ? `${list.length}/${strategies.data.strategies.length}` : undefined}>
-        All strategies
-      </SectionLabel>
-      <div className="glass" style={{ padding: 0, overflow: "hidden" }}>
+      <div className="glass" style={{ padding: 0, overflow: "hidden", marginTop: "1.6rem" }}>
+        <div className="card-head" style={{ padding: "0.9rem 0.95rem 0", marginBottom: 0 }}>
+          <span className="card-icon">
+            <IcLayers size={14} />
+          </span>
+          <span className="card-title">All strategies</span>
+          <span className="card-right">
+            {strategies.data && <span className="faint" style={{ fontSize: "0.76rem" }}>{list.length}/{strategies.data.strategies.length}</span>}
+          </span>
+        </div>
         <div className="filter-bar">
           <IcSearch size={14} />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search strategies…" style={{ maxWidth: 280 }} />

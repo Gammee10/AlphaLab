@@ -6,6 +6,7 @@ import { errText, useUi } from "../store";
 import { MultiEquity } from "../charts";
 import {
   Badge,
+  CardHead,
   EmptyState,
   ErrorInline,
   Loading,
@@ -13,7 +14,7 @@ import {
   PageHead,
   SectionLabel,
 } from "../components/ui";
-import { IcPlus, IcSearch, IcX } from "../components/icons";
+import { IcChart, IcPlus, IcSearch, IcX } from "../components/icons";
 import { deltaClass, fmtMoney, normalize, shortHash } from "../format";
 
 export function Compare({ seedRunId }: { seedRunId: string | null }) {
@@ -130,6 +131,12 @@ export function Compare({ seedRunId }: { seedRunId: string | null }) {
 
           <SectionLabel>Metric deltas</SectionLabel>
           <div className="glass" style={{ padding: 0, overflow: "hidden" }}>
+            <div className="card-head" style={{ padding: "0.9rem 0.95rem 0", marginBottom: 0 }}>
+              <span className="card-icon">
+                <IcChart size={14} />
+              </span>
+              <span className="card-title">Metric deltas vs baseline</span>
+            </div>
             <table>
               <thead>
                 <tr>
@@ -163,10 +170,11 @@ export function Compare({ seedRunId }: { seedRunId: string | null }) {
           {detailRuns.isLoading && <Loading text="Loading equity curves…" />}
           {detailRuns.data && (
             <div className="chart-panel glass">
-              <div className="chart-head">
-                <div className="chart-name">Normalized equity</div>
-                <span className="faint" style={{ fontSize: "0.75rem" }}>% from own start — comparable across capitals</span>
-              </div>
+              <CardHead
+                icon={<IcChart size={14} />}
+                title="Normalized equity"
+                right={<span className="faint" style={{ fontSize: "0.75rem" }}>% from own start — comparable across capitals</span>}
+              />
               <MultiEquity curves={detailRuns.data.map((r) => ({ label: r.run.id.slice(0, 8), points: normalize(r.run.equityCurve) }))} />
               <div className="row-wrap" style={{ marginTop: "0.5rem" }}>
                 {detailRuns.data.map((r) => (

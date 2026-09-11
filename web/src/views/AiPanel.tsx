@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, type Proposal } from "../api";
 import { errText, useUi } from "../store";
-import { Badge, ErrorInline, Loading, SectionLabel } from "../components/ui";
+import { Badge, CardHead, ErrorInline, Loading } from "../components/ui";
 import { IcSend, IcSpark } from "../components/icons";
 
 interface Msg {
@@ -110,8 +110,8 @@ export function AiPanel({ presetVersionId }: { presetVersionId: string | null })
         <ErrorInline text="Pick a strategy below — proposals need a base version to edit." />
       )}
 
-      <div className="glass" style={{ maxWidth: 840 }}>
-        <SectionLabel>Base strategy version</SectionLabel>
+      <div className="glass" style={{ maxWidth: 880 }}>
+        <CardHead icon={<IcSpark size={14} />} title="Base strategy version" />
         <div className="row-wrap" style={{ marginBottom: "0.4rem" }}>
           <select value={versionId} onChange={(e) => setVersionId(e.target.value)} style={{ maxWidth: 380 }}>
             <option value="">— select strategy version —</option>

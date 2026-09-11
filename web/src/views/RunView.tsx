@@ -8,6 +8,7 @@ import { MonthlyHeatmap } from "../components/MonthlyHeatmap";
 import {
   Badge,
   Banner,
+  CardHead,
   CopyChip,
   EmptyState,
   ErrorInline,
@@ -123,19 +124,21 @@ export function RunView({ id }: { id: string }) {
       {tab === "overview" && (
         <>
           <div className="chart-panel glass">
-            <div className="chart-head">
-              <div className="chart-name">Price + trade markers</div>
-              {bars.data?.downsampled && <span className="faint" style={{ fontSize: "0.75rem" }}>downsampled {bars.data.total} → shown</span>}
-            </div>
+            <CardHead
+              icon={<IcChart size={14} />}
+              title="Price + trade markers"
+              right={bars.data?.downsampled ? <span className="faint" style={{ fontSize: "0.75rem" }}>downsampled {bars.data.total} → shown</span> : undefined}
+            />
             {bars.isLoading && <Loading text="Loading candles…" />}
             {bars.data && <PriceChart bars={bars.data.bars} trades={chartTrades} />}
           </div>
 
           <div className="chart-panel glass">
-            <div className="chart-head">
-              <div className="chart-name">Equity + drawdown</div>
-              <span className="faint" style={{ fontSize: "0.75rem" }}>equity (mint) · drawdown (red, lower pane)</span>
-            </div>
+            <CardHead
+              icon={<IcChart size={14} />}
+              title="Equity + drawdown"
+              right={<span className="faint" style={{ fontSize: "0.75rem" }}>equity (mint) · drawdown (red, lower pane)</span>}
+            />
             <EquityChart curve={r.equityCurve} />
           </div>
 
@@ -146,6 +149,15 @@ export function RunView({ id }: { id: string }) {
 
       {tab === "trades" && (
         <div className="glass" style={{ padding: 0, overflow: "hidden" }}>
+          <div className="card-head" style={{ padding: "0.9rem 0.95rem 0", marginBottom: 0 }}>
+            <span className="card-icon">
+              <IcList size={14} />
+            </span>
+            <span className="card-title">Trades</span>
+            <span className="card-right">
+              {totalTrades !== null && <span className="faint" style={{ fontSize: "0.76rem" }}>{totalTrades} total</span>}
+            </span>
+          </div>
           <div className="filter-bar">
             <div className="row-wrap">
               {(["all", "long", "short"] as const).map((s) => (
@@ -160,8 +172,6 @@ export function RunView({ id }: { id: string }) {
               ))}
             </div>
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search id, price, reason…" style={{ maxWidth: 260 }} />
-            <div className="grow" />
-            {totalTrades !== null && <span className="faint" style={{ fontSize: "0.8rem" }}>{totalTrades} total</span>}
           </div>
 
           {trades.isLoading ? (

@@ -7,6 +7,7 @@ import { ConditionBuilder } from "../components/ConditionBuilder";
 import {
   Badge,
   Banner,
+  CardHead,
   CopyChip,
   ErrorInline,
   Loading,
@@ -142,11 +143,11 @@ export function StrategyDetail({ id }: { id: string }) {
         <>
           <SectionLabel>Current version</SectionLabel>
           <div className="glass">
-            <div className="row-wrap" style={{ marginBottom: "0.6rem" }}>
-              <Badge kind="acc">v{current.versionNumber}</Badge>
-              <CopyChip text={current.specHash} label={shortHash(current.specHash)} />
-              <span className="faint" style={{ fontSize: "0.8rem" }}>spec hash</span>
-            </div>
+            <CardHead
+              icon={<IcList size={14} />}
+              title={`Version ${current.versionNumber}`}
+              right={<CopyChip text={current.specHash} label={shortHash(current.specHash)} />}
+            />
             <div>
               {(current.spec.entry as { conditions: Node[] }).conditions.map((c) => (
                 <span key={c.id} className="rule-chip">
@@ -158,6 +159,7 @@ export function StrategyDetail({ id }: { id: string }) {
 
           <SectionLabel>Version timeline</SectionLabel>
           <div className="glass">
+            <CardHead icon={<IcLayers size={14} />} title="Version timeline" />
             <ol className="timeline">
               {versions.map((v) => (
                 <li key={v.id} className={`timeline-row${v.id === current.id ? " current" : ""}`}>
