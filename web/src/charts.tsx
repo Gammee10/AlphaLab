@@ -16,28 +16,28 @@ import { useUi } from "./store";
 function palette(theme: "dark" | "light") {
   return theme === "dark"
     ? {
-        text: "#a7b0c6",
-        grid: "rgba(148, 163, 199, 0.09)",
-        up: "#4ade80",
-        down: "#fb7185",
-        accent: "#8b7cf6",
-        accentTop: "rgba(139, 124, 246, 0.38)",
-        accentBottom: "rgba(139, 124, 246, 0.02)",
-        ddTop: "rgba(251, 113, 133, 0.28)",
-        ddBottom: "rgba(251, 113, 133, 0.02)",
-        series: ["#4ade80", "#8b7cf6", "#fb7185", "#22d3ee", "#fbbf24"],
+        text: "#98a39d",
+        grid: "rgba(255, 255, 255, 0.05)",
+        up: "#3ddc97",
+        down: "#f2555a",
+        accent: "#3ddc97",
+        accentTop: "rgba(61, 220, 151, 0.26)",
+        accentBottom: "rgba(61, 220, 151, 0.01)",
+        ddTop: "rgba(242, 85, 90, 0.22)",
+        ddBottom: "rgba(242, 85, 90, 0.01)",
+        series: ["#3ddc97", "#e8b45f", "#5aa9e6", "#f2555a", "#8fd694"],
       }
     : {
-        text: "#4b5570",
-        grid: "rgba(15, 23, 42, 0.07)",
-        up: "#059669",
-        down: "#e11d48",
-        accent: "#6d5ae0",
-        accentTop: "rgba(109, 90, 224, 0.3)",
-        accentBottom: "rgba(109, 90, 224, 0.02)",
-        ddTop: "rgba(225, 29, 72, 0.22)",
-        ddBottom: "rgba(225, 29, 72, 0.02)",
-        series: ["#059669", "#6d5ae0", "#e11d48", "#0891b2", "#b45309"],
+        text: "#55605b",
+        grid: "rgba(9, 20, 14, 0.07)",
+        up: "#0e9f64",
+        down: "#d92d3a",
+        accent: "#0e9f64",
+        accentTop: "rgba(14, 159, 100, 0.22)",
+        accentBottom: "rgba(14, 159, 100, 0.01)",
+        ddTop: "rgba(217, 45, 58, 0.18)",
+        ddBottom: "rgba(217, 45, 58, 0.01)",
+        series: ["#0e9f64", "#b06f16", "#2563eb", "#d92d3a", "#0d9488"],
       };
 }
 

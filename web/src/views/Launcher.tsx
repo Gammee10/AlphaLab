@@ -147,6 +147,7 @@ export function Launcher({ presetVersionId }: { presetVersionId: string | null }
   return (
     <div>
       <PageHead
+        eyebrow="New simulation"
         title="Backtest launcher"
         sub="Historical simulation with pessimistic fills. Assumptions are stored with the run — history never rewrites them."
       />

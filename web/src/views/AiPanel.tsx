@@ -93,6 +93,9 @@ export function AiPanel({ presetVersionId }: { presetVersionId: string | null })
     <div>
       <div className="page-head">
         <div className="grow">
+          <div className="eyebrow" style={{ marginBottom: "0.35rem" }}>
+            Research assistant
+          </div>
           <h2 className="page-title">
             <span className="stat-icon" style={{ width: 34, height: 34 }}>
               <IcSpark size={16} />

@@ -60,11 +60,23 @@ export function ErrorInline({ text }: { text: string }) {
   );
 }
 
+/* ---------- Card header ---------- */
+export function CardHead({ icon, title, right }: { icon?: ReactNode; title: ReactNode; right?: ReactNode }) {
+  return (
+    <div className="card-head">
+      {icon && <span className="card-icon">{icon}</span>}
+      <span className="card-title">{title}</span>
+      {right && <span className="card-right">{right}</span>}
+    </div>
+  );
+}
+
 /* ---------- Page header ---------- */
-export function PageHead({ title, sub, actions }: { title: ReactNode; sub?: string; actions?: ReactNode }) {
+export function PageHead({ eyebrow, title, sub, actions }: { eyebrow?: ReactNode; title: ReactNode; sub?: string; actions?: ReactNode }) {
   return (
     <div className="page-head">
       <div className="grow" style={{ minWidth: 0 }}>
+        {eyebrow && <div className="eyebrow" style={{ marginBottom: "0.35rem" }}>{eyebrow}</div>}
         <h2 className="page-title">{title}</h2>
         {sub && <p className="page-sub">{sub}</p>}
       </div>

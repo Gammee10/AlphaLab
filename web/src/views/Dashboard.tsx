@@ -10,7 +10,6 @@ import {
   ErrorInline,
   Loading,
   PageHead,
-  SectionLabel,
   Skeleton,
 } from "../components/ui";
 import { IcCoin, IcDb, IcLayers, IcPlay, IcSearch, IcSpark } from "../components/icons";
@@ -56,6 +55,7 @@ export function Dashboard() {
   return (
     <div>
       <PageHead
+        eyebrow="Research overview"
         title="Research dashboard"
         sub="Live overview of your strategies, datasets and latest simulations."
         actions={
@@ -115,11 +115,16 @@ export function Dashboard() {
         </div>
       </div>
 
-      <SectionLabel right={runs.data ? `${rows.length}/${runs.data.runs.length} shown` : undefined}>
-        Recent backtests
-      </SectionLabel>
-
-      <div className="glass" style={{ padding: 0, overflow: "hidden" }}>
+      <div className="glass" style={{ padding: 0, overflow: "hidden", marginTop: "1.6rem" }}>
+        <div className="card-head" style={{ padding: "0.9rem 0.95rem 0", marginBottom: 0 }}>
+          <span className="card-icon">
+            <IcPlay size={14} />
+          </span>
+          <span className="card-title">Recent backtests</span>
+          <span className="card-right">
+            {runs.data && <span className="faint" style={{ fontSize: "0.76rem" }}>{runs.data.runs.length} runs</span>}
+          </span>
+        </div>
         <div className="filter-bar">
           <IcSearch size={14} />
           <input

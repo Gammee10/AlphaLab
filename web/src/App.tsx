@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-quer
 import { api } from "./api";
 import { navigate, useRoute } from "./router";
 import { UiProvider, useUi } from "./store";
-import { IcLayers, IcMoon, IcPanel, IcPlay, IcPulse, IcSpark, IcSun, IcSwap } from "./components/icons";
+import { IcLayers, IcMoon, IcPlay, IcPulse, IcSearch, IcSpark, IcSun, IcSwap } from "./components/icons";
 import { Toaster } from "./components/ui";
 import { CommandPalette } from "./shell/CommandPalette";
 import { AiPanel } from "./views/AiPanel";
@@ -22,7 +22,7 @@ interface NavEntry {
 }
 
 const NAV: NavEntry[] = [
-  { path: "/", label: "Dashboard", icon: IcPulse, match: (s) => s.length === 0 },
+  { path: "/", label: "Home", icon: IcPulse, match: (s) => s.length === 0 },
   { path: "/strategies", label: "Strategies", icon: IcLayers, match: (s) => s[0] === "strategies" || s[0] === "strategy" },
   { path: "/launcher", label: "Backtest", icon: IcPlay, match: (s) => s[0] === "launcher" },
   { path: "/compare", label: "Compare", icon: IcSwap, match: (s) => s[0] === "compare" },
@@ -31,7 +31,7 @@ const NAV: NavEntry[] = [
 
 const client = new QueryClient();
 
-function StatusDot() {
+function StatusPills() {
   const health = useQuery({
     queryKey: ["health"],
     queryFn: () => fetch("/api/health").then((r) => r.json()),
@@ -40,29 +40,14 @@ function StatusDot() {
   const ai = useQuery({ queryKey: ["ai-status"], queryFn: api.aiStatus, refetchInterval: 60000 });
   const ok = health.data?.ok === true;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-      <div className="row-wrap" style={{ fontSize: "0.76rem", color: "var(--text-2)" }}>
-        <span
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: "50%",
-            flexShrink: 0,
-            background: ok ? "var(--up)" : "var(--down)",
-            boxShadow: `0 0 7px ${ok ? "var(--up)" : "var(--down)"}`,
-          }}
-        />
-        <span className="rail-text" style={{ opacity: undefined }}>
-          API {ok ? "connected" : "down"}
-        </span>
-      </div>
-      <div className="row-wrap" style={{ fontSize: "0.72rem", color: "var(--text-3)" }}>
-        <span style={{ width: 8, flexShrink: 0 }} />
-        <span className="rail-text">
-          {ai.data ? (ai.data.keyConfigured ? `gemini (${ai.data.provider})` : "ruled · offline") : "…"}
-        </span>
-      </div>
-    </div>
+    <>
+      <span className="badge" style={{ color: ok ? "var(--up)" : "var(--down)", borderColor: ok ? "var(--up-border)" : "var(--down-border)", background: ok ? "var(--up-soft)" : "var(--down-soft)" }}>
+        API {ok ? "connected" : "down"}
+      </span>
+      <span className="badge">
+        {ai.data ? (ai.data.keyConfigured ? `gemini · ${ai.data.provider}` : "ruled · offline") : "…"}
+      </span>
+    </>
   );
 }
 
@@ -72,27 +57,26 @@ function Rail() {
   return (
     <nav className={`rail${railExpanded ? " expanded" : ""}`}>
       <button className="logo" onClick={toggleRail} title={railExpanded ? "Collapse sidebar" : "Expand sidebar"}>
-        <IcPulse size={20} />
-        <span className="logo-text">
-          <b style={{ color: "#fff", fontWeight: 800 }}>AlphaLab</b>
+        <span className="mark">
+          <IcPulse size={17} />
         </span>
+        <span className="logo-text">AlphaLab</span>
       </button>
-      <div className="rail-divider" />
+      <div className="rail-label">Research terminal</div>
       {NAV.map((n) => (
         <button key={n.path} className={n.match(segments) ? "rail-item active" : "rail-item"} onClick={() => navigate(n.path)} title={n.label}>
-          <n.icon size={17} />
+          <n.icon size={16} />
           <span className="rail-text">{n.label}</span>
         </button>
       ))}
       <div className="rail-spacer" />
-      <StatusDot />
     </nav>
   );
 }
 
 function Topbar() {
   const { segments } = useRoute();
-  const { theme, toggleTheme, setPaletteOpen, railExpanded } = useUi();
+  const { theme, toggleTheme, setPaletteOpen } = useUi();
 
   const crumbs: { label: string; path?: string }[] = [];
   if (segments.length === 0) {
@@ -133,14 +117,15 @@ function Topbar() {
           </span>
         ))}
       </div>
+      <div className="grow" />
+      <button className="palette-trigger" onClick={() => setPaletteOpen(true)}>
+        <IcSearch size={14} />
+        <span className="hint-kbd">Search strategies, runs, commands…</span>
+        <kbd>⌘K</kbd>
+      </button>
+      <div className="grow" />
       <div className="topbar-actions">
-        {!railExpanded && (
-          <button className="palette-trigger" onClick={() => setPaletteOpen(true)}>
-            <IcPanel size={14} />
-            <span className="hint-kbd">Search…</span>
-            <kbd>⌘K</kbd>
-          </button>
-        )}
+        <StatusPills />
         <button className="btn glass sm" onClick={toggleTheme} title="Toggle theme">
           {theme === "dark" ? <IcSun size={15} /> : <IcMoon size={15} />}
         </button>

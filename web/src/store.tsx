@@ -37,7 +37,7 @@ export function UiProvider({ children }: { children: ReactNode }) {
     const saved = localStorage.getItem("alphalab.theme");
     return saved === "light" ? "light" : "dark";
   });
-  const [railExpanded, setRailExpanded] = useState(() => localStorage.getItem("alphalab.rail") === "1");
+  const [railExpanded, setRailExpanded] = useState(() => localStorage.getItem("alphalab.rail") !== "0");
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [paletteOpen, setPaletteOpen] = useState(false);
 

@@ -85,7 +85,11 @@ export function Strategies() {
 
   return (
     <div>
-      <PageHead title="Strategies" sub="Start from a validated template, tune parameters, and iterate as immutable versions." />
+      <PageHead
+        eyebrow="Strategy library"
+        title="Strategies"
+        sub="Start from a validated template, tune parameters, and iterate as immutable versions."
+      />
 
       <SectionLabel right={templates.data ? `${templates.data.templates.length} available` : undefined}>
         Templates

@@ -121,6 +121,7 @@ export function StrategyDetail({ id }: { id: string }) {
   return (
     <div>
       <PageHead
+        eyebrow="Strategy detail"
         title={
           <>
             {strategy.name} <Badge kind="neutral">{versions.length} versions</Badge>

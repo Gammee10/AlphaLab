@@ -86,6 +86,7 @@ export function RunView({ id }: { id: string }) {
   return (
     <div>
       <PageHead
+        eyebrow="Backtest result"
         title={
           <>
             Run <CopyChip text={r.resultHash} label={shortHash(r.resultHash)} /> <Badge kind="neutral">{r.engineVersion}</Badge>
@@ -133,7 +134,7 @@ export function RunView({ id }: { id: string }) {
           <div className="chart-panel glass">
             <div className="chart-head">
               <div className="chart-name">Equity + drawdown</div>
-              <span className="faint" style={{ fontSize: "0.75rem" }}>equity (violet) · drawdown (red, lower pane)</span>
+              <span className="faint" style={{ fontSize: "0.75rem" }}>equity (mint) · drawdown (red, lower pane)</span>
             </div>
             <EquityChart curve={r.equityCurve} />
           </div>

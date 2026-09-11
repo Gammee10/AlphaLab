@@ -65,6 +65,7 @@ export function Compare({ seedRunId }: { seedRunId: string | null }) {
   return (
     <div>
       <PageHead
+        eyebrow="Experiments"
         title="Compare runs"
         sub="Material differences against the baseline first, then metric deltas and normalized equity."
         actions={
